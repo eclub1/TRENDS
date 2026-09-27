@@ -5,6 +5,7 @@ Endpoints:
   GET  /health        → health check
   GET  /api/analysis  → full analysis JSON (trend + ML + MTF + patterns + prediction)
   POST /api/chat      → Groq AI chat
+  POST /api/calculate → position size calculator
 """
 
 import os, math, json, traceback, logging
@@ -25,6 +26,7 @@ from src.predictor    import predict
 from src.ml_engine    import train_and_predict
 from src.multi_timeframe import analyze_mtf
 from src.patterns     import detect_patterns
+from src.signal_engine import generate_signal, generate_chart_signals
 
 app = FastAPI(title="ETH Trend AI", version="4.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -131,6 +133,33 @@ def run_analysis(days: int = 90) -> dict:
         logger.warning(f"Predictor failed: {e}")
         pred_data = {}
 
+    logger.info("Generating real-time signals...")
+    try:
+        ml_dir  = ml_data.get("direction", "NEUTRAL")
+        ml_prob = ml_data.get("probability", 50.0)
+        sig = generate_signal(df_ind, ml_dir, ml_prob)
+        chart_sigs = generate_chart_signals(df_ind)
+        signal_data = {
+            "action":        sig.action,
+            "strength":      sig.strength,
+            "price":         sig.price,
+            "reason":        sig.reason,
+            "confirmations": sig.confirmations,
+            "total_checks":  sig.total_checks,
+            "entry":         sig.entry,
+            "stop_loss":     sig.stop_loss,
+            "take_profit":   sig.take_profit,
+            "urgency":       sig.urgency,
+        }
+        chart_signal_data = [
+            {"time": cs.time, "price": cs.price, "action": cs.action, "strength": cs.strength}
+            for cs in chart_sigs
+        ]
+    except Exception as e:
+        logger.warning(f"Signal engine failed: {e}")
+        signal_data = {"action":"HOLD","strength":"WEAK","price":0,"reason":"Signal engine error","confirmations":0,"total_checks":8,"urgency":"WAIT"}
+        chart_signal_data = []
+
     # Build candle series
     candles = []
     for _, row in df_ind.iterrows():
@@ -168,6 +197,8 @@ def run_analysis(days: int = 90) -> dict:
         "mtf": mtf_data,
         "patterns": patterns_data,
         "prediction": pred_data,
+        "signal": signal_data,
+        "chart_signals": chart_signal_data,
     }
 
 
@@ -289,6 +320,114 @@ async def api_chat(request: Request):
         resp.raise_for_status()
         reply = resp.json()["choices"][0]["message"]["content"]
         return SafeJSONResponse(content={"reply": reply})
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        return SafeJSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.post("/api/calculate")
+async def api_calculate(request: Request):
+    """
+    Position size calculator.
+    Input JSON:
+      { "balance": 1000, "risk_pct": 2 }   (risk_pct = % of balance to risk per trade)
+    Uses current prediction (entry, SL, TP1/2/3) from cached analysis.
+    Returns full trade plan with lot size, dollar risk, profit targets, recommendations.
+    """
+    body = await request.json()
+    balance  = float(body.get("balance", 0))
+    risk_pct = float(body.get("risk_pct", 2))   # default 2% risk per trade
+
+    if balance <= 0:
+        return SafeJSONResponse(status_code=400, content={"error": "Balance must be greater than 0."})
+    if risk_pct <= 0 or risk_pct > 100:
+        return SafeJSONResponse(status_code=400, content={"error": "Risk % must be between 0.1 and 100."})
+
+    try:
+        analysis = run_analysis(days=90)
+        pred = analysis.get("prediction", {})
+        market = analysis.get("market", {})
+
+        entry     = float(pred.get("entry_high", market.get("price", 0)))
+        stop_loss = float(pred.get("stop_loss", 0))
+        tp1       = float(pred.get("tp1", 0))
+        tp2       = float(pred.get("tp2", 0))
+        tp3       = float(pred.get("tp3", 0))
+        bias      = pred.get("bias", "WAIT")
+        forecast  = pred.get("forecast", "NEUTRAL")
+
+        if entry <= 0 or stop_loss <= 0:
+            return SafeJSONResponse(status_code=500, content={"error": "Prediction data not available yet. Try refreshing."})
+
+        # ── Core calculations ─────────────────────────────────────────────────
+        risk_dollar   = round(balance * risk_pct / 100, 2)       # $ you're willing to lose
+        risk_per_eth  = abs(entry - stop_loss)                    # $ risk per 1 ETH
+        lot_size      = round(risk_dollar / risk_per_eth, 6) if risk_per_eth > 0 else 0  # ETH to buy
+        position_value = round(lot_size * entry, 2)               # total $ in trade
+        position_pct   = round(position_value / balance * 100, 1) # % of account used
+
+        # Profit at each TP
+        def profit(tp):
+            return round(lot_size * abs(tp - entry), 2)
+        def roi(tp):
+            return round(profit(tp) / balance * 100, 2)
+
+        tp1_profit = profit(tp1); tp1_roi = roi(tp1)
+        tp2_profit = profit(tp2); tp2_roi = roi(tp2)
+        tp3_profit = profit(tp3); tp3_roi = roi(tp3)
+
+        # New balance at each TP
+        bal_tp1 = round(balance + tp1_profit, 2)
+        bal_tp2 = round(balance + tp2_profit, 2)
+        bal_tp3 = round(balance + tp3_profit, 2)
+        bal_sl  = round(balance - risk_dollar, 2)
+
+        # ── Recommendation ────────────────────────────────────────────────────
+        if bias == "WAIT" or forecast == "NEUTRAL":
+            action = "⏳ WAIT — No clear trade setup right now. Hold your capital."
+        elif bias == "LONG":
+            action = f"🟢 BUY {lot_size} ETH at ~${entry:,.2f}"
+        else:
+            action = f"🔴 SELL/SHORT {lot_size} ETH at ~${entry:,.2f}"
+
+        # Risk warning
+        if risk_pct > 5:
+            risk_warning = f"⚠ You are risking {risk_pct}% per trade. Professional traders risk 1-2% max. Consider reducing risk."
+        elif risk_pct > 3:
+            risk_warning = f"⚡ {risk_pct}% risk is above conservative levels (1-2%). Acceptable for experienced traders."
+        else:
+            risk_warning = f"✅ {risk_pct}% risk is within safe limits (1-2% recommended)."
+
+        # Max trades before account blown (at this risk %)
+        max_losses = math.floor(math.log(0.5) / math.log(1 - risk_pct / 100)) if risk_pct < 100 else 1
+
+        return SafeJSONResponse(content={
+            # Inputs
+            "balance":        balance,
+            "risk_pct":       risk_pct,
+            "risk_dollar":    risk_dollar,
+            # Trade setup
+            "entry":          entry,
+            "stop_loss":      stop_loss,
+            "bias":           bias,
+            "forecast":       forecast,
+            "action":         action,
+            # Position
+            "lot_size":       lot_size,
+            "position_value": position_value,
+            "position_pct":   position_pct,
+            "risk_per_eth":   round(risk_per_eth, 2),
+            # Targets
+            "tp1": tp1, "tp2": tp2, "tp3": tp3,
+            "tp1_profit": tp1_profit, "tp2_profit": tp2_profit, "tp3_profit": tp3_profit,
+            "tp1_roi": tp1_roi, "tp2_roi": tp2_roi, "tp3_roi": tp3_roi,
+            "bal_tp1": bal_tp1, "bal_tp2": bal_tp2, "bal_tp3": bal_tp3,
+            "bal_sl": bal_sl,
+            # Risk info
+            "risk_warning": risk_warning,
+            "max_losses_before_50pct_drawdown": max_losses,
+        })
+
     except Exception as e:
         logger.error(traceback.format_exc())
         return SafeJSONResponse(status_code=500, content={"error": str(e)})

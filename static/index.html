@@ -59,6 +59,7 @@
     .rp-tab.active{color:#fff;border-bottom-color:var(--blue);}
     .rp-tab.active.pred-tab{border-bottom-color:var(--entry);color:#fcd34d;}
     .rp-tab.active.ai-tab{border-bottom-color:var(--ai);color:#a78bfa;}
+    .rp-tab.active.calc-tab{border-bottom-color:#10b981;color:#34d399;}
     .rp-content{flex:1;overflow-y:auto;display:none;flex-direction:column;}
     .rp-content.active{display:flex;}
     .rp-content::-webkit-scrollbar{width:4px;}
@@ -168,6 +169,40 @@
     .pred-summary{font-size:12px;line-height:1.6;color:var(--muted);padding:12px;border-top:1px solid var(--border);}
     .pred-summary strong{color:var(--text);}
 
+    /* ── Calculator ── */
+    .calc-section{padding:14px 12px;border-bottom:1px solid var(--border);}
+    .calc-input-row{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
+    .calc-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;}
+    .calc-input{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:6px;font-size:14px;font-weight:600;outline:none;width:100%;transition:border-color .15s;}
+    .calc-input:focus{border-color:#10b981;}
+    .calc-input::placeholder{color:var(--muted);font-weight:400;}
+    .calc-btn{width:100%;padding:10px;background:#10b981;border:none;color:#fff;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;transition:background .15s;letter-spacing:.02em;}
+    .calc-btn:hover{background:#059669;}
+    .calc-btn:disabled{background:var(--bg3);color:var(--muted);cursor:not-allowed;}
+    .risk-slider-wrap{display:flex;align-items:center;gap:10px;}
+    .risk-slider{flex:1;accent-color:#10b981;cursor:pointer;}
+    .risk-val-badge{background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:3px 8px;font-size:12px;font-weight:700;color:#10b981;min-width:40px;text-align:center;}
+    .action-card{margin:12px;border-radius:8px;padding:14px;text-align:center;border:2px solid;}
+    .action-card.LONG {background:rgba(38,166,154,.08);border-color:#26a69a40;}
+    .action-card.SHORT{background:rgba(239,83,80,.08); border-color:#ef535040;}
+    .action-card.WAIT {background:rgba(245,197,24,.05);border-color:#f5c51840;}
+    .action-text{font-size:14px;font-weight:800;letter-spacing:.03em;margin-bottom:4px;}
+    .action-text.LONG {color:#26a69a;} .action-text.SHORT{color:#ef5350;} .action-text.WAIT{color:#f5c518;}
+    .calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px;}
+    .calc-card{background:var(--bg3);border-radius:6px;padding:10px;text-align:center;}
+    .calc-card-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
+    .calc-card-value{font-size:15px;font-weight:800;}
+    .tp-table{width:100%;border-collapse:collapse;margin:0 12px;width:calc(100% - 24px);}
+    .tp-table th{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:6px 0;text-align:left;border-bottom:1px solid var(--border);}
+    .tp-table td{padding:8px 0;font-size:12px;border-bottom:1px solid var(--border);}
+    .tp-table tr:last-child td{border-bottom:none;}
+    .risk-warn{margin:12px;padding:10px 12px;border-radius:6px;font-size:11px;line-height:1.5;background:rgba(245,197,24,.07);border:1px solid rgba(245,197,24,.25);color:#f5c518;}
+    .risk-warn.ok{background:rgba(38,166,154,.07);border-color:rgba(38,166,154,.25);color:#26a69a;}
+    .risk-warn.danger{background:rgba(239,83,80,.07);border-color:rgba(239,83,80,.25);color:#ef5350;}
+    .drawdown-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;font-size:11px;border-top:1px solid var(--border);}
+    .calc-placeholder{padding:24px 16px;text-align:center;color:var(--muted);font-size:12px;line-height:1.7;}
+    .calc-spinner{width:24px;height:24px;border:2px solid var(--bg3);border-top-color:#10b981;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px;}
+
     /* ── Chat ── */
     .chat-panel{display:flex;flex-direction:column;flex:1;min-height:0;}
     .chat-messages{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:0;}
@@ -198,7 +233,26 @@
     .send-btn:hover{background:#6d28d9;}
     .send-btn:disabled{background:var(--bg3);cursor:not-allowed;}
 
-    /* Loading */
+    /* Signal banner */
+    .signal-banner{display:flex;align-items:center;gap:8px;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700;border:1px solid;white-space:nowrap;cursor:pointer;transition:all .2s;}
+    .signal-banner.BUY  {background:rgba(38,166,154,.15);border-color:#26a69a50;color:#26a69a;}
+    .signal-banner.SELL {background:rgba(239,83,80,.15); border-color:#ef535050;color:#ef5350;}
+    .signal-banner.HOLD {background:rgba(120,123,134,.1);border-color:#78787850;color:#787b86;}
+    .signal-banner .sig-pulse{width:8px;height:8px;border-radius:50%;flex-shrink:0;animation:sigPulse 1.5s ease-in-out infinite;}
+    .signal-banner.BUY  .sig-pulse{background:#26a69a;}
+    .signal-banner.SELL .sig-pulse{background:#ef5350;}
+    .signal-banner.HOLD .sig-pulse{background:#787b86;animation:none;}
+    @keyframes sigPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
+    .signal-banner .sig-urgency{font-size:10px;font-weight:600;padding:1px 5px;border-radius:4px;margin-left:2px;}
+    .signal-banner.BUY  .sig-urgency{background:#26a69a25;color:#26a69a;}
+    .signal-banner.SELL .sig-urgency{background:#ef535025;color:#ef5350;}
+    .signal-conf{font-size:10px;font-weight:400;opacity:.8;}
+    /* Countdown */
+    .refresh-countdown{font-size:10px;color:var(--muted);display:flex;align-items:center;gap:4px;}
+    .countdown-ring{position:relative;width:16px;height:16px;}
+    .countdown-ring svg{transform:rotate(-90deg);}
+    .countdown-ring circle{fill:none;stroke:var(--border2);stroke-width:2;}
+    .countdown-ring .progress{stroke:var(--blue);stroke-dasharray:44;stroke-dashoffset:44;transition:stroke-dashoffset 1s linear;}
     #overlay{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:100;}
     .spinner{width:32px;height:32px;border:3px solid var(--bg3);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;}
     @keyframes spin{to{transform:rotate(360deg)}}
@@ -240,6 +294,23 @@
     </div>
     <div class="topbar-right">
       <div class="live-pill"><span class="dot"></span><span id="last-up">—</span></div>
+      <!-- Live signal banner -->
+      <div class="signal-banner HOLD" id="signal-banner" onclick="switchTab('analysis')" title="Click to see details">
+        <span class="sig-pulse"></span>
+        <span id="signal-action">—</span>
+        <span class="signal-conf" id="signal-conf"></span>
+        <span class="sig-urgency" id="signal-urgency"></span>
+      </div>
+      <!-- Refresh countdown -->
+      <div class="refresh-countdown">
+        <div class="countdown-ring">
+          <svg width="16" height="16" viewBox="0 0 16 16">
+            <circle cx="8" cy="8" r="6" stroke-width="2"/>
+            <circle class="progress" id="countdown-ring" cx="8" cy="8" r="6" stroke-width="2"/>
+          </svg>
+        </div>
+        <span id="countdown-txt">10:00</span>
+      </div>
       <button class="btn" onclick="loadData()">↻ Refresh</button>
     </div>
   </header>
@@ -282,6 +353,7 @@
     <div class="rp-tabs">
       <div class="rp-tab active"   id="tab-analysis" onclick="switchTab('analysis')">Analysis</div>
       <div class="rp-tab pred-tab" id="tab-predict"  onclick="switchTab('predict')">🎯 Predict</div>
+      <div class="rp-tab calc-tab" id="tab-calc"     onclick="switchTab('calc')">💰 Calc</div>
       <div class="rp-tab ai-tab"   id="tab-chat"     onclick="switchTab('chat')">🤖 AI</div>
     </div>
 
@@ -408,6 +480,38 @@
       <div class="pred-summary" id="pred-summary">—</div>
       <div style="padding:12px;font-size:10px;color:var(--muted);line-height:1.5;margin-top:auto;">
         Predictions based on technical indicators + ML. Not financial advice.
+      </div>
+    </div>
+
+    <!-- ── Calculator Tab ── -->
+    <div class="rp-content" id="content-calc">
+      <!-- Inputs -->
+      <div class="calc-section">
+        <div class="sb-title">💰 Position Size Calculator</div>
+        <div class="calc-input-row">
+          <div>
+            <div class="calc-label">Your Account Balance (USD)</div>
+            <input class="calc-input" id="calc-balance" type="number" placeholder="e.g. 1000" min="1" step="1"/>
+          </div>
+        </div>
+        <div class="calc-input-row">
+          <div>
+            <div class="calc-label">Risk Per Trade: <span id="risk-pct-display">2</span>%</div>
+            <div class="risk-slider-wrap">
+              <input class="risk-slider" id="risk-slider" type="range" min="0.5" max="10" step="0.5" value="2"
+                oninput="document.getElementById('risk-pct-display').textContent=this.value"/>
+              <span class="risk-val-badge" id="risk-badge">2%</span>
+            </div>
+          </div>
+        </div>
+        <button class="calc-btn" id="calc-btn" onclick="runCalculator()">Calculate Trade Plan</button>
+      </div>
+
+      <!-- Results -->
+      <div id="calc-results">
+        <div class="calc-placeholder">
+          Enter your balance above and click Calculate to get your exact trade plan — lot size, risk amount, profit targets, and what action to take.
+        </div>
       </div>
     </div>
 
@@ -668,7 +772,199 @@ function renderPrediction(p){
   document.getElementById('pred-summary').innerHTML='<strong>Summary:</strong> '+p.summary;
 }
 
-// ── Chat ──────────────────────────────────────────────────────────────────────
+// ── Signal banner + chart markers ────────────────────────────────────────────
+let signalMarkers = [];
+
+function renderSignalBanner(sig) {
+  const banner = document.getElementById('signal-banner');
+  banner.className = 'signal-banner ' + sig.action;
+  const emoji = {BUY:'🟢 BUY', SELL:'🔴 SELL', HOLD:'⏸ HOLD'}[sig.action] || sig.action;
+  document.getElementById('signal-action').textContent = emoji;
+  document.getElementById('signal-conf').textContent =
+    sig.action !== 'HOLD' ? `${sig.confirmations}/${sig.total_checks} signals` : '';
+  const urgEl = document.getElementById('signal-urgency');
+  urgEl.textContent = sig.urgency;
+  urgEl.style.display = sig.urgency === 'WAIT' ? 'none' : '';
+}
+
+function drawChartSignals(chartSigs) {
+  if (!chartsInited || !candleSeries) return;
+  const markers = chartSigs.map(s => ({
+    time: s.time,
+    position: s.action === 'BUY' ? 'belowBar' : 'aboveBar',
+    color: s.action === 'BUY' ? '#26a69a' : '#ef5350',
+    shape: s.action === 'BUY' ? 'arrowUp' : 'arrowDown',
+    text: s.action === 'BUY'
+      ? (s.strength === 'STRONG' ? '▲ BUY' : '△ buy')
+      : (s.strength === 'STRONG' ? '▼ SELL' : '▽ sell'),
+    size: s.strength === 'STRONG' ? 2 : 1,
+  }));
+  try { candleSeries.setMarkers(markers); } catch(e) {}
+}
+
+// ── Countdown timer ───────────────────────────────────────────────────────────
+const REFRESH_SEC = 600;
+let countdownSec = REFRESH_SEC;
+const ringCircumference = 44;
+
+function startCountdown() {
+  countdownSec = REFRESH_SEC;
+  const ring = document.getElementById('countdown-ring');
+  const txt  = document.getElementById('countdown-txt');
+  clearInterval(window._countdownTimer);
+  window._countdownTimer = setInterval(() => {
+    countdownSec--;
+    if (countdownSec <= 0) { countdownSec = REFRESH_SEC; loadData(); }
+    const mins = Math.floor(countdownSec / 60);
+    const secs = countdownSec % 60;
+    txt.textContent = `${mins}:${secs.toString().padStart(2,'0')}`;
+    const offset = ringCircumference - (ringCircumference * (REFRESH_SEC - countdownSec) / REFRESH_SEC);
+    if (ring) ring.style.strokeDashoffset = offset;
+  }, 1000);
+}
+
+// ── Calculator ────────────────────────────────────────────────────────────────
+document.getElementById('risk-slider').addEventListener('input', function(){
+  document.getElementById('risk-pct-display').textContent = this.value;
+  document.getElementById('risk-badge').textContent = this.value + '%';
+});
+
+async function runCalculator() {
+  const balInput = document.getElementById('calc-balance');
+  const balance  = parseFloat(balInput.value);
+  const riskPct  = parseFloat(document.getElementById('risk-slider').value);
+
+  if (!balance || balance <= 0) {
+    balInput.focus();
+    balInput.style.borderColor = '#ef5350';
+    setTimeout(() => balInput.style.borderColor = '', 1500);
+    return;
+  }
+  balInput.style.borderColor = '';
+
+  const btn = document.getElementById('calc-btn');
+  btn.disabled = true;
+  btn.textContent = 'Calculating…';
+
+  document.getElementById('calc-results').innerHTML =
+    `<div class="calc-placeholder"><div class="calc-spinner"></div>Running analysis…</div>`;
+
+  try {
+    const res  = await fetch('/api/calculate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({balance, risk_pct: riskPct}),
+    });
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+    renderCalcResults(d);
+  } catch(e) {
+    document.getElementById('calc-results').innerHTML =
+      `<div class="calc-placeholder" style="color:var(--red)">⚠ ${e.message}</div>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Calculate Trade Plan';
+}
+
+function renderCalcResults(d) {
+  const biasColor = d.bias==='LONG'?'#26a69a':d.bias==='SHORT'?'#ef5350':'#f5c518';
+  const warnClass = d.risk_pct > 5 ? 'danger' : d.risk_pct > 3 ? '' : 'ok';
+
+  const tpRows = [
+    {label:'🟢 TP1', price:d.tp1, profit:d.tp1_profit, roi:d.tp1_roi, bal:d.bal_tp1},
+    {label:'🟢 TP2', price:d.tp2, profit:d.tp2_profit, roi:d.tp2_roi, bal:d.bal_tp2},
+    {label:'🟢 TP3', price:d.tp3, profit:d.tp3_profit, roi:d.tp3_roi, bal:d.bal_tp3},
+    {label:'🔴 SL',  price:d.stop_loss, profit:-d.risk_dollar, roi:-d.risk_pct, bal:d.bal_sl},
+  ];
+
+  document.getElementById('calc-results').innerHTML = `
+    <!-- Action card -->
+    <div class="action-card ${d.bias}" style="margin:12px;">
+      <div class="action-text ${d.bias}">${d.action}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">${d.forecast} forecast · ${d.bias} bias</div>
+    </div>
+
+    <!-- Core metrics grid -->
+    <div class="calc-grid">
+      <div class="calc-card">
+        <div class="calc-card-label">Lot Size</div>
+        <div class="calc-card-value" style="color:#fff">${d.lot_size} ETH</div>
+      </div>
+      <div class="calc-card">
+        <div class="calc-card-label">Position Value</div>
+        <div class="calc-card-value" style="color:var(--blue)">$${fmt(d.position_value)}</div>
+      </div>
+      <div class="calc-card">
+        <div class="calc-card-label">Max Risk ($)</div>
+        <div class="calc-card-value" style="color:#ef5350">-$${fmt(d.risk_dollar)}</div>
+      </div>
+      <div class="calc-card">
+        <div class="calc-card-label">Capital Used</div>
+        <div class="calc-card-value" style="color:var(--muted)">${d.position_pct}%</div>
+      </div>
+      <div class="calc-card">
+        <div class="calc-card-label">Entry Price</div>
+        <div class="calc-card-value" style="color:#fcd34d">$${fmt(d.entry)}</div>
+      </div>
+      <div class="calc-card">
+        <div class="calc-card-label">Stop Loss</div>
+        <div class="calc-card-value" style="color:#ef5350">$${fmt(d.stop_loss)}</div>
+      </div>
+    </div>
+
+    <!-- TP / SL outcomes table -->
+    <div style="padding:0 12px;margin-bottom:12px;">
+      <div class="sb-title">Profit & Loss at Each Level</div>
+      <table class="tp-table">
+        <thead><tr><th>Level</th><th>Price</th><th>P&L</th><th>ROI</th><th>Balance</th></tr></thead>
+        <tbody>
+          ${tpRows.map(r => {
+            const pos = r.profit >= 0;
+            const c = pos ? '#26a69a' : '#ef5350';
+            const sign = pos ? '+' : '';
+            return `<tr>
+              <td style="font-weight:700;color:${c}">${r.label}</td>
+              <td>$${fmt(r.price)}</td>
+              <td style="color:${c};font-weight:700">${sign}$${fmt(Math.abs(r.profit))}</td>
+              <td style="color:${c}">${sign}${r.roi}%</td>
+              <td style="color:${c}">$${fmt(r.bal)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Risk warning -->
+    <div class="risk-warn ${warnClass}">${d.risk_warning}</div>
+
+    <!-- Drawdown stat -->
+    <div class="drawdown-row">
+      <span style="color:var(--muted)">Consecutive losses to -50% drawdown</span>
+      <span style="font-weight:700;color:var(--text)">${d.max_losses_before_50pct_drawdown} trades</span>
+    </div>
+
+    <!-- How to execute -->
+    <div style="padding:12px;border-top:1px solid var(--border);">
+      <div class="sb-title">How to Execute</div>
+      <div style="font-size:12px;line-height:1.8;color:var(--muted);">
+        <div>1️⃣ <strong style="color:var(--text)">Buy ${d.lot_size} ETH</strong> at market (~$${fmt(d.entry)})</div>
+        <div>2️⃣ <strong style="color:#ef5350">Set stop loss</strong> at $${fmt(d.stop_loss)}</div>
+        <div>3️⃣ <strong style="color:#26a69a">Take profit 1</strong> at $${fmt(d.tp1)} → +$${fmt(d.tp1_profit)}</div>
+        <div>4️⃣ <strong style="color:#26a69a">Take profit 2</strong> at $${fmt(d.tp2)} → +$${fmt(d.tp2_profit)}</div>
+        <div>5️⃣ <strong style="color:#26a69a">Take profit 3</strong> at $${fmt(d.tp3)} → +$${fmt(d.tp3_profit)}</div>
+        <div style="margin-top:8px;font-size:11px;">💡 Consider taking 50% off at TP1 and letting the rest run to TP2/TP3.</div>
+      </div>
+    </div>
+
+    <div style="padding:12px;font-size:10px;color:var(--muted);line-height:1.5;">
+      Not financial advice. Always manage your own risk.
+    </div>
+  `;
+}
+
+// Also update AI chat suggestions to include calculator queries
+// ── Calculator ─────────────────────────────────────────────────────────────────
 let chatHistory=[],chatBusy=false;
 function scrollChatToBottom(){const e=document.getElementById('chat-messages');e.scrollTop=e.scrollHeight;}
 function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,80)+'px';}
@@ -726,6 +1022,9 @@ async function loadData(){
       drawPredLines(d.prediction);
       togglePredLines(document.getElementById('content-predict').classList.contains('active'));
     }
+    if(d.signal) renderSignalBanner(d.signal);
+    if(d.chart_signals) drawChartSignals(d.chart_signals);
+    startCountdown();
     document.getElementById('overlay').classList.add('hidden');
   }catch(e){
     document.getElementById('overlay').innerHTML=
@@ -742,7 +1041,7 @@ function resizeCharts(){
   r(chartMacd,document.getElementById('chart-macd'));
 }
 window.addEventListener('resize',resizeCharts);
-setInterval(loadData,10*60*1000);
+startCountdown();
 loadData();
 </script>
 </body>
