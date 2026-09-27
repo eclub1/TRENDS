@@ -558,13 +558,16 @@ function renderPrediction(p) {
     {label:'🟢 TP3', price:p.tp3, pct:p.tp3_pct, rr:p.rr3, color:'#26a69a'},
     {label:'🔴 SL',  price:p.stop_loss, pct:p.stop_pct, rr:null, color:'#ef5350'},
   ];
-  document.getElementById('targets-body').innerHTML=rows.map(r=>`
-    <tr>
+  document.getElementById('targets-body').innerHTML=rows.map(r=>{
+    const rrColor = r.rr===null ? '' : r.rr>=2?'#26a69a':r.rr>=1.5?'#4caf50':r.rr>=1?'#f5c518':'#ef5350';
+    const rrLabel = r.rr!==null ? `<span class="rr-pill" style="color:${rrColor};border-color:${rrColor}40">1:${r.rr}</span>` : '<span style="color:var(--muted)">—</span>';
+    return `<tr>
       <td style="color:${r.color};font-weight:600;">${r.label}</td>
       <td style="font-weight:700;">$${r.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
       <td style="color:${r.pct>=0?'#26a69a':'#ef5350'}">${r.pct>=0?'+':''}${r.pct}%</td>
-      <td>${r.rr!==null?`<span class="rr-pill">1:${r.rr}</span>`:'-'}</td>
-    </tr>`).join('');
+      <td>${rrLabel}</td>
+    </tr>`;
+  }).join('');
 
   // Support / Resistance
   const srRow=(s,type)=>{
