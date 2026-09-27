@@ -2,335 +2,599 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>ETH/USD — ETH Trend AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
   <style>
+    /* ═══════════════════════════════════════════════
+       RESET & BASE
+    ═══════════════════════════════════════════════ */
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
     :root{
-      --bg:#131722;--bg2:#1e222d;--bg3:#2a2e39;--bg4:#212736;
-      --border:#2a2e39;--border2:#363a45;
-      --text:#d1d4dc;--muted:#787b86;
-      --blue:#2962ff;--green:#26a69a;--red:#ef5350;--yellow:#f5c518;
-      --up:#26a69a;--down:#ef5350;--ai:#7c3aed;--entry:#f59e0b;
+      --bg:#0f1117;--bg2:#161b27;--bg3:#1e2535;--bg4:#252d3d;
+      --border:#1e2535;--border2:#2a3348;
+      --text:#e2e8f0;--muted:#64748b;--muted2:#94a3b8;
+      --blue:#3b82f6;--blue2:#1d4ed8;
+      --green:#10b981;--green2:#059669;
+      --red:#ef4444;--red2:#dc2626;
+      --yellow:#f59e0b;--yellow2:#d97706;
+      --purple:#8b5cf6;--purple2:#7c3aed;
+      --up:#10b981;--down:#ef4444;
+      --radius:10px;--radius-sm:6px;
+      --shadow:0 4px 24px rgba(0,0,0,.4);
+      --topbar-h:56px;--bottom-nav-h:56px;
     }
-    html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,'Trebuchet MS',sans-serif;font-size:13px;overflow:hidden;}
-    .app{display:grid;grid-template-rows:48px 1fr;grid-template-columns:1fr 310px;height:100vh;}
-    .topbar{grid-column:1/-1;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:14px;z-index:10;}
+    html{height:100%;-webkit-tap-highlight-color:transparent;}
+    body{
+      height:100%;background:var(--bg);color:var(--text);
+      font-family:'Inter',system-ui,sans-serif;font-size:13px;
+      overflow:hidden;
+    }
+    /* scrollbar */
+    ::-webkit-scrollbar{width:3px;height:3px;}
+    ::-webkit-scrollbar-track{background:transparent;}
+    ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+    /* ═══════════════════════════════════════════════
+       TYPOGRAPHY UTILITIES
+    ═══════════════════════════════════════════════ */
+    .label{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;}
+    .value-lg{font-size:22px;font-weight:800;letter-spacing:-.02em;}
+    .value-md{font-size:15px;font-weight:700;}
+    .value-sm{font-size:12px;font-weight:600;}
+
+    /* ═══════════════════════════════════════════════
+       DESKTOP LAYOUT
+    ═══════════════════════════════════════════════ */
+    .app{
+      display:grid;
+      grid-template-rows:var(--topbar-h) 1fr;
+      grid-template-columns:1fr 320px;
+      height:100vh;
+      overflow:hidden;
+    }
+    .topbar{
+      grid-column:1/-1;
+      background:var(--bg2);
+      border-bottom:1px solid var(--border);
+      display:flex;align-items:center;
+      padding:0 16px;gap:12px;
+      z-index:100;
+      position:relative;
+    }
     .main{display:flex;flex-direction:column;overflow:hidden;min-width:0;}
-    .right-panel{background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+    .right-panel{
+      background:var(--bg2);
+      border-left:1px solid var(--border);
+      display:flex;flex-direction:column;
+      overflow:hidden;
+    }
 
-    /* Topbar */
-    .logo{font-size:15px;font-weight:700;color:#fff;display:flex;align-items:center;gap:6px;white-space:nowrap;}
-    .sym{font-size:15px;font-weight:700;color:#fff;}
-    .cur-price{font-size:18px;font-weight:700;color:#fff;}
-    .chg{font-size:12px;font-weight:600;padding:2px 6px;border-radius:3px;}
-    .chg.up{background:rgba(38,166,154,.15);color:var(--up);}
-    .chg.down{background:rgba(239,83,80,.15);color:var(--down);}
-    .chg.flat{background:rgba(120,123,134,.15);color:var(--muted);}
-    .ohlc-bar{display:flex;gap:14px;}
-    .ohlc-item{display:flex;gap:4px;font-size:11px;}
-    .ohlc-item span:first-child{color:var(--muted);}
-    .topbar-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+    /* ═══════════════════════════════════════════════
+       TOPBAR
+    ═══════════════════════════════════════════════ */
+    .logo{
+      display:flex;align-items:center;gap:8px;
+      font-size:15px;font-weight:800;color:#fff;
+      white-space:nowrap;
+    }
+    .logo-icon{
+      width:30px;height:30px;border-radius:8px;
+      background:linear-gradient(135deg,var(--blue),var(--purple));
+      display:flex;align-items:center;justify-content:center;
+      font-size:15px;flex-shrink:0;
+    }
+    .divider{width:1px;height:22px;background:var(--border2);flex-shrink:0;}
+    .sym{font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;}
+    .price-row{display:flex;align-items:baseline;gap:8px;}
+    .cur-price{font-size:20px;font-weight:800;color:#fff;letter-spacing:-.02em;}
+    .chg{font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;}
+    .chg.up  {background:rgba(16,185,129,.15);color:var(--up);}
+    .chg.down{background:rgba(239,68,68,.15); color:var(--down);}
+    .chg.flat{background:rgba(100,116,139,.15);color:var(--muted);}
+    .ohlc-bar{display:flex;gap:12px;margin-left:4px;}
+    .ohlc-item{display:flex;gap:4px;font-size:11px;color:var(--muted2);}
+    .ohlc-item b{color:var(--text);font-weight:600;}
+    .topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0;}
     .live-pill{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);}
-    .dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 2s ease-in-out infinite;}
-    @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
-    .btn{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px;}
-    .btn:hover{background:var(--border2);}
+    .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:blink 2s ease-in-out infinite;}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+    .btn{
+      background:var(--bg3);border:1px solid var(--border2);
+      color:var(--text);padding:6px 14px;border-radius:var(--radius-sm);
+      cursor:pointer;font-size:12px;font-weight:600;
+      transition:all .15s;white-space:nowrap;
+    }
+    .btn:hover{background:var(--bg4);border-color:var(--blue);}
+    .btn:active{transform:scale(.97);}
 
-    /* Toolbar */
-    .toolbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 12px;height:34px;display:flex;align-items:center;gap:6px;flex-shrink:0;overflow-x:auto;}
-    .ind-badge{display:inline-flex;align-items:center;font-size:11px;padding:2px 7px;border-radius:3px;border:1px solid;white-space:nowrap;}
-    .ind-ema9{color:#2196f3;border-color:#2196f320;background:#2196f310;}
-    .ind-ema21{color:#ff9800;border-color:#ff980020;background:#ff980010;}
-    .ind-ema50{color:#9c27b0;border-color:#9c27b020;background:#9c27b010;}
-    .ind-ema200{color:#f44336;border-color:#f4433620;background:#f4433610;}
-    .ind-bb{color:#26a69a;border-color:#26a69a20;background:#26a69a10;}
+    /* Signal banner */
+    .signal-banner{
+      display:flex;align-items:center;gap:7px;
+      padding:5px 12px;border-radius:20px;
+      font-size:12px;font-weight:700;
+      border:1px solid;cursor:pointer;
+      transition:all .2s;white-space:nowrap;
+    }
+    .signal-banner.BUY {background:rgba(16,185,129,.12);border-color:#10b98140;color:var(--green);}
+    .signal-banner.SELL{background:rgba(239,68,68,.12); border-color:#ef444440;color:var(--red);}
+    .signal-banner.HOLD{background:rgba(100,116,139,.1);border-color:#64748b40;color:var(--muted);}
+    .sig-pulse{width:7px;height:7px;border-radius:50%;flex-shrink:0;animation:sigPulse 1.5s ease-in-out infinite;}
+    .signal-banner.BUY  .sig-pulse{background:var(--green);box-shadow:0 0 8px var(--green);}
+    .signal-banner.SELL .sig-pulse{background:var(--red);  box-shadow:0 0 8px var(--red);}
+    .signal-banner.HOLD .sig-pulse{background:var(--muted);animation:none;}
+    @keyframes sigPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(1.5)}}
+    .sig-urgency{font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:2px;}
+    .signal-banner.BUY  .sig-urgency{background:#10b98120;color:var(--green);}
+    .signal-banner.SELL .sig-urgency{background:#ef444420;color:var(--red);}
+    /* Countdown */
+    .refresh-countdown{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);}
+    .countdown-ring{position:relative;width:18px;height:18px;}
+    .countdown-ring svg{transform:rotate(-90deg);}
+    .countdown-ring circle{fill:none;stroke:var(--border2);stroke-width:2.5;}
+    .countdown-ring .progress{stroke:var(--blue);stroke-dasharray:44;stroke-dashoffset:44;transition:stroke-dashoffset 1s linear;}
+
+    /* ═══════════════════════════════════════════════
+       TOOLBAR
+    ═══════════════════════════════════════════════ */
+    .toolbar{
+      background:var(--bg2);border-bottom:1px solid var(--border);
+      padding:0 14px;height:36px;
+      display:flex;align-items:center;gap:6px;flex-shrink:0;overflow-x:auto;
+    }
+    .toolbar::-webkit-scrollbar{height:0;}
+    .ind-badge{
+      display:inline-flex;align-items:center;gap:4px;
+      font-size:11px;font-weight:600;
+      padding:2px 8px;border-radius:12px;border:1px solid;
+      white-space:nowrap;cursor:default;
+    }
+    .ind-ema9  {color:#3b82f6;border-color:#3b82f620;background:#3b82f610;}
+    .ind-ema21 {color:#f97316;border-color:#f9731620;background:#f9731610;}
+    .ind-ema50 {color:#a855f7;border-color:#a855f720;background:#a855f710;}
+    .ind-ema200{color:#ef4444;border-color:#ef444420;background:#ef444410;}
+    .ind-bb    {color:#10b981;border-color:#10b98120;background:#10b98110;}
     .tb-sep{width:1px;height:16px;background:var(--border2);flex-shrink:0;}
+    .tb-label{font-size:11px;color:var(--muted);white-space:nowrap;}
+    #pred-legend{display:none;font-size:11px;color:var(--muted);white-space:nowrap;}
 
-    /* Charts */
+    /* ═══════════════════════════════════════════════
+       CHARTS
+    ═══════════════════════════════════════════════ */
     .chart-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;}
-    .chart-wrap{position:relative;display:flex;flex-direction:column;min-height:0;}
+    .chart-wrap{position:relative;min-height:0;}
+    .chart-sub-label{
+      position:absolute;top:5px;left:10px;
+      font-size:10px;font-weight:600;color:var(--muted);
+      z-index:5;pointer-events:none;letter-spacing:.04em;
+    }
 
-    /* Right panel tabs */
-    .rp-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
-    .rp-tab{flex:1;padding:9px 0;text-align:center;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;user-select:none;}
+    /* ═══════════════════════════════════════════════
+       RIGHT PANEL TABS
+    ═══════════════════════════════════════════════ */
+    .rp-tabs{
+      display:flex;border-bottom:1px solid var(--border);flex-shrink:0;
+      background:var(--bg2);
+    }
+    .rp-tab{
+      flex:1;padding:10px 0;text-align:center;
+      font-size:11px;font-weight:700;color:var(--muted);
+      cursor:pointer;border-bottom:2px solid transparent;
+      transition:all .15s;user-select:none;letter-spacing:.02em;
+    }
     .rp-tab:hover{color:var(--text);}
-    .rp-tab.active{color:#fff;border-bottom-color:var(--blue);}
-    .rp-tab.active.pred-tab{border-bottom-color:var(--entry);color:#fcd34d;}
-    .rp-tab.active.ai-tab{border-bottom-color:var(--ai);color:#a78bfa;}
-    .rp-tab.active.calc-tab{border-bottom-color:#10b981;color:#34d399;}
+    .rp-tab.active          {color:#fff;        border-bottom-color:var(--blue);}
+    .rp-tab.active.pred-tab {color:#fcd34d;     border-bottom-color:var(--yellow);}
+    .rp-tab.active.calc-tab {color:#34d399;     border-bottom-color:var(--green);}
+    .rp-tab.active.ai-tab   {color:#a78bfa;     border-bottom-color:var(--purple);}
     .rp-content{flex:1;overflow-y:auto;display:none;flex-direction:column;}
     .rp-content.active{display:flex;}
-    .rp-content::-webkit-scrollbar{width:4px;}
-    .rp-content::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:2px;}
+    .rp-content::-webkit-scrollbar{width:3px;}
+    .rp-content::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
 
-    /* Shared section styles */
-    .sb-section{padding:12px;border-bottom:1px solid var(--border);}
-    .sb-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+    /* ═══════════════════════════════════════════════
+       SHARED CARD STYLES
+    ═══════════════════════════════════════════════ */
+    .sb-section{padding:14px;border-bottom:1px solid var(--border);}
+    .sb-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;}
+    .card{background:var(--bg3);border-radius:var(--radius);padding:12px;border:1px solid var(--border);}
+    .card+.card{margin-top:8px;}
     .metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;}
-    .metric{background:var(--bg3);border-radius:5px;padding:8px 10px;}
-    .metric-label{font-size:10px;color:var(--muted);margin-bottom:3px;}
-    .metric-value{font-size:14px;font-weight:700;}
-    .score-wrap{margin-bottom:8px;}
-    .score-label{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:4px;}
-    .score-track{height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;}
-    .score-fill{height:100%;border-radius:3px;transition:width .5s ease;}
+    .metric{background:var(--bg3);border-radius:var(--radius-sm);padding:10px;border:1px solid var(--border);}
+    .metric .label{margin-bottom:4px;}
+    .metric .metric-value{font-size:15px;font-weight:800;}
+    .score-wrap{margin-bottom:6px;}
+    .score-label{display:flex;justify-content:space-between;margin-bottom:5px;}
+    .score-track{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;border:1px solid var(--border);}
+    .score-fill{height:100%;border-radius:3px;transition:width .6s cubic-bezier(.4,0,.2,1);}
 
     /* Trend */
-    .trend-card{background:var(--bg3);border-radius:6px;padding:12px;text-align:center;margin-bottom:8px;}
-    .trend-label{font-size:10px;color:var(--muted);margin-bottom:4px;}
-    .trend-value{font-size:16px;font-weight:700;}
-    .STRONG_UPTREND{color:#26a69a;} .UPTREND{color:#4caf50;} .NEUTRAL{color:#f5c518;}
-    .DOWNTREND{color:#ff7043;} .STRONG_DOWNTREND{color:#ef5350;}
-    .risk-LOW{color:#26a69a;} .risk-MEDIUM{color:#f5c518;} .risk-HIGH{color:#ff7043;} .risk-CRITICAL{color:#ef5350;}
+    .trend-card{
+      background:linear-gradient(135deg,var(--bg3),var(--bg4));
+      border-radius:var(--radius);padding:14px;
+      text-align:center;margin-bottom:8px;
+      border:1px solid var(--border2);
+    }
+    .trend-value{font-size:17px;font-weight:800;letter-spacing:.02em;}
+    .STRONG_UPTREND{color:#10b981;} .UPTREND{color:#34d399;}
+    .NEUTRAL{color:#f59e0b;} .DOWNTREND{color:#fb923c;} .STRONG_DOWNTREND{color:#ef4444;}
+    .risk-LOW{color:#10b981;} .risk-MEDIUM{color:#f59e0b;} .risk-HIGH{color:#fb923c;} .risk-CRITICAL{color:#ef4444;}
 
     /* Signals */
-    .signal-row{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);}
+    .signal-row{display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);}
     .signal-row:last-child{border-bottom:none;}
     .sig-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px;}
-    .sig-dot.bull{background:var(--green);} .sig-dot.bear{background:var(--red);} .sig-dot.neut{background:var(--muted);}
-    .sig-name{font-size:11px;font-weight:600;} .sig-interp{font-size:10px;color:var(--muted);margin-top:1px;line-height:1.3;}
-    .sig-score{font-size:11px;font-weight:700;min-width:32px;text-align:right;}
+    .sig-dot.bull{background:var(--green);box-shadow:0 0 6px var(--green);}
+    .sig-dot.bear{background:var(--red);  box-shadow:0 0 6px var(--red);}
+    .sig-dot.neut{background:var(--muted);}
+    .sig-name{font-size:11px;font-weight:700;}
+    .sig-interp{font-size:10px;color:var(--muted);margin-top:2px;line-height:1.4;}
+    .sig-score{font-size:11px;font-weight:800;min-width:34px;text-align:right;}
     .sig-score.pos{color:var(--green);} .sig-score.neg{color:var(--red);} .sig-score.neu{color:var(--muted);}
-    .warn-item{display:flex;gap:6px;align-items:flex-start;padding:5px 0;font-size:11px;color:#ff7043;border-bottom:1px solid var(--border);}
+    .warn-item{display:flex;gap:6px;align-items:flex-start;padding:6px 0;font-size:11px;color:#fb923c;border-bottom:1px solid var(--border);}
     .warn-item:last-child{border-bottom:none;}
     .warn-none{font-size:11px;color:var(--green);}
-    .rec-box{background:var(--bg3);border-left:3px solid var(--blue);border-radius:0 5px 5px 0;padding:10px 12px;font-size:12px;line-height:1.5;}
+    .rec-box{
+      background:var(--bg3);border-left:3px solid var(--blue);
+      border-radius:0 var(--radius-sm) var(--radius-sm) 0;
+      padding:10px 12px;font-size:12px;line-height:1.6;
+      border:1px solid var(--border);border-left-color:var(--blue);
+    }
 
-    /* ── ML Panel ── */
-    .ml-card{background:var(--bg3);border-radius:8px;padding:14px;margin-bottom:8px;}
-    .ml-direction{font-size:22px;font-weight:800;margin-bottom:2px;}
-    .ml-direction.BULLISH{color:#26a69a;} .ml-direction.BEARISH{color:#ef5350;} .ml-direction.NEUTRAL{color:#f5c518;}
+    /* ML */
+    .ml-direction{font-size:20px;font-weight:800;margin-bottom:3px;}
+    .ml-direction.BULLISH{color:var(--green);} .ml-direction.BEARISH{color:var(--red);} .ml-direction.NEUTRAL{color:var(--yellow);}
     .prob-bar-wrap{display:flex;align-items:center;gap:8px;margin:8px 0;}
-    .prob-bar-track{flex:1;height:8px;background:var(--border2);border-radius:4px;overflow:hidden;}
+    .prob-bar-track{flex:1;height:7px;background:var(--border2);border-radius:4px;overflow:hidden;}
     .prob-bar-fill{height:100%;border-radius:4px;transition:width .6s ease;}
     .accuracy-row{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);}
     .fi-row{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:11px;}
     .fi-bar{height:4px;background:var(--blue);border-radius:2px;min-width:2px;}
-    .fi-name{color:var(--text);flex:1;}
-    .fi-val{color:var(--muted);min-width:30px;text-align:right;}
+    .fi-name{color:var(--text);flex:1;} .fi-val{color:var(--muted);min-width:30px;text-align:right;}
     .strength-pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;}
-    .strength-STRONG{background:rgba(38,166,154,.15);color:#26a69a;border:1px solid #26a69a40;}
-    .strength-MODERATE{background:rgba(245,197,24,.1);color:#f5c518;border:1px solid #f5c51840;}
-    .strength-WEAK{background:rgba(120,123,134,.1);color:var(--muted);border:1px solid var(--border2);}
+    .strength-STRONG  {background:rgba(16,185,129,.15);color:var(--green);}
+    .strength-MODERATE{background:rgba(245,158,11,.12); color:var(--yellow);}
+    .strength-WEAK    {background:rgba(100,116,139,.12);color:var(--muted);}
 
-    /* ── MTF Panel ── */
+    /* MTF */
     .mtf-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);}
     .mtf-row:last-child{border-bottom:none;}
-    .mtf-tf{font-size:11px;font-weight:700;min-width:42px;}
-    .mtf-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;min-width:72px;text-align:center;}
-    .mtf-badge.BULLISH{background:rgba(38,166,154,.15);color:#26a69a;}
-    .mtf-badge.BEARISH{background:rgba(239,83,80,.15);color:#ef5350;}
-    .mtf-badge.NEUTRAL{background:rgba(245,197,24,.1);color:#f5c518;}
-    .mtf-key{font-size:10px;color:var(--muted);flex:1;line-height:1.3;}
-    .conf-big{font-size:28px;font-weight:800;text-align:center;}
-    .STRONG_BULL{color:#26a69a;} .BULL{color:#4caf50;} .BEAR{color:#ff7043;} .STRONG_BEAR{color:#ef5350;}
-    .quality-badge{display:inline-block;width:36px;height:36px;border-radius:50%;font-size:18px;font-weight:800;line-height:36px;text-align:center;}
-    .quality-A{background:rgba(38,166,154,.2);color:#26a69a;}
-    .quality-B{background:rgba(76,175,80,.2);color:#4caf50;}
-    .quality-C{background:rgba(245,197,24,.15);color:#f5c518;}
-    .quality-D{background:rgba(239,83,80,.15);color:#ef5350;}
+    .mtf-tf{font-size:11px;font-weight:700;min-width:44px;}
+    .mtf-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;min-width:78px;text-align:center;}
+    .mtf-badge.BULLISH{background:rgba(16,185,129,.15);color:var(--green);}
+    .mtf-badge.BEARISH{background:rgba(239,68,68,.15); color:var(--red);}
+    .mtf-badge.NEUTRAL{background:rgba(245,158,11,.1); color:var(--yellow);}
+    .mtf-key{font-size:10px;color:var(--muted);flex:1;line-height:1.4;}
+    .conf-big{font-size:26px;font-weight:800;}
+    .STRONG_BULL{color:#10b981;} .BULL{color:#34d399;} .BEAR{color:#fb923c;} .STRONG_BEAR{color:#ef4444;}
+    .quality-badge{display:inline-flex;width:38px;height:38px;border-radius:50%;align-items:center;justify-content:center;font-size:18px;font-weight:800;}
+    .quality-A{background:rgba(16,185,129,.2);color:var(--green);border:2px solid #10b98140;}
+    .quality-B{background:rgba(52,211,153,.15);color:#34d399;border:2px solid #34d39940;}
+    .quality-C{background:rgba(245,158,11,.15);color:var(--yellow);border:2px solid #f59e0b40;}
+    .quality-D{background:rgba(239,68,68,.15); color:var(--red);  border:2px solid #ef444440;}
 
-    /* ── Patterns ── */
-    .pattern-card{background:var(--bg3);border-radius:6px;padding:10px 12px;margin-bottom:6px;border-left:3px solid;}
-    .pattern-card.BULLISH{border-color:#26a69a;}
-    .pattern-card.BEARISH{border-color:#ef5350;}
-    .pattern-card.NEUTRAL{border-color:#f5c518;}
-    .pattern-name{font-size:12px;font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:6px;}
-    .pattern-desc{font-size:11px;color:var(--muted);line-height:1.4;}
+    /* Patterns */
+    .pattern-card{border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:6px;border-left:3px solid;}
+    .pattern-card.BULLISH{background:rgba(16,185,129,.06); border-color:var(--green);}
+    .pattern-card.BEARISH{background:rgba(239,68,68,.06);  border-color:var(--red);}
+    .pattern-card.NEUTRAL{background:rgba(245,158,11,.05); border-color:var(--yellow);}
+    .pattern-name{font-size:12px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+    .pattern-desc{font-size:11px;color:var(--muted);line-height:1.5;}
 
-    /* ── Predict Tab ── */
-    .forecast-card{margin:12px;border-radius:8px;padding:14px;text-align:center;background:var(--bg3);border:1px solid var(--border2);}
-    .forecast-badge{display:inline-block;padding:4px 14px;border-radius:20px;font-size:13px;font-weight:700;letter-spacing:.04em;margin-bottom:6px;}
-    .forecast-badge.BULLISH{background:rgba(38,166,154,.15);color:#26a69a;border:1px solid #26a69a40;}
-    .forecast-badge.BEARISH{background:rgba(239,83,80,.15);color:#ef5350;border:1px solid #ef535040;}
-    .forecast-badge.NEUTRAL{background:rgba(245,197,24,.1);color:#f5c518;border:1px solid #f5c51840;}
-    .conf-bar-wrap{display:flex;align-items:center;gap:8px;}
-    .conf-bar-track{flex:1;height:4px;background:var(--border2);border-radius:2px;overflow:hidden;}
-    .conf-bar-fill{height:100%;border-radius:2px;transition:width .5s;}
-    .conf-pct{font-size:11px;font-weight:700;min-width:32px;text-align:right;}
-    .entry-band{background:linear-gradient(90deg,rgba(245,158,11,.1),rgba(245,158,11,.05));border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:10px 12px;margin-bottom:8px;}
-    .entry-band .entry-title{font-size:10px;color:#f59e0b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;}
-    .entry-price{font-size:15px;font-weight:700;color:#fcd34d;}
+    /* ═══════════════════════════════════════════════
+       PREDICT TAB
+    ═══════════════════════════════════════════════ */
+    .forecast-card{
+      margin:12px;border-radius:var(--radius);padding:16px;text-align:center;
+      background:var(--bg3);border:1px solid var(--border2);
+    }
+    .forecast-badge{
+      display:inline-block;padding:5px 16px;border-radius:20px;
+      font-size:14px;font-weight:800;letter-spacing:.04em;margin-bottom:6px;
+    }
+    .forecast-badge.BULLISH{background:rgba(16,185,129,.15);color:var(--green);border:1px solid #10b98140;}
+    .forecast-badge.BEARISH{background:rgba(239,68,68,.15); color:var(--red);  border:1px solid #ef444440;}
+    .forecast-badge.NEUTRAL{background:rgba(245,158,11,.1); color:var(--yellow);border:1px solid #f59e0b40;}
+    .conf-bar-wrap{display:flex;align-items:center;gap:8px;margin-top:4px;}
+    .conf-bar-track{flex:1;height:5px;background:var(--border2);border-radius:3px;overflow:hidden;}
+    .conf-bar-fill{height:100%;border-radius:3px;transition:width .6s ease;}
+    .conf-pct{font-size:12px;font-weight:700;min-width:34px;text-align:right;}
+    .entry-band{
+      background:rgba(245,158,11,.07);
+      border:1px solid rgba(245,158,11,.25);
+      border-radius:var(--radius-sm);
+      padding:12px;margin-bottom:8px;
+    }
+    .entry-title{font-size:10px;color:var(--yellow);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;font-weight:700;}
+    .entry-price{font-size:16px;font-weight:800;color:#fcd34d;}
     .level-table{width:100%;border-collapse:collapse;}
-    .level-table th{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:4px 0;text-align:left;border-bottom:1px solid var(--border);}
-    .level-table td{padding:6px 0;font-size:12px;border-bottom:1px solid var(--border);}
+    .level-table th{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:5px 0;text-align:left;border-bottom:1px solid var(--border);font-weight:700;}
+    .level-table td{padding:7px 0;font-size:12px;border-bottom:1px solid var(--border);}
     .level-table tr:last-child td{border-bottom:none;}
-    .rr-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;border:1px solid;}
-    .srlist{display:flex;flex-direction:column;gap:5px;}
+    .rr-pill{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;border:1px solid;font-weight:700;}
+    .srlist{display:flex;flex-direction:column;gap:6px;}
     .sr-row{display:flex;align-items:center;gap:8px;font-size:11px;}
     .sr-price{font-weight:700;min-width:80px;}
     .sr-label{color:var(--muted);flex:1;}
-    .sr-strength{font-size:10px;padding:1px 6px;border-radius:8px;}
-    .sr-strength.STRONG{background:rgba(38,166,154,.15);color:#26a69a;}
-    .sr-strength.MODERATE{background:rgba(245,197,24,.1);color:#f5c518;}
-    .sr-strength.WEAK{background:rgba(120,123,134,.1);color:var(--muted);}
+    .sr-strength{font-size:10px;padding:2px 7px;border-radius:8px;font-weight:600;}
+    .sr-strength.STRONG  {background:rgba(16,185,129,.15);color:var(--green);}
+    .sr-strength.MODERATE{background:rgba(245,158,11,.12);color:var(--yellow);}
+    .sr-strength.WEAK    {background:rgba(100,116,139,.1); color:var(--muted);}
     .pred-summary{font-size:12px;line-height:1.6;color:var(--muted);padding:12px;border-top:1px solid var(--border);}
     .pred-summary strong{color:var(--text);}
 
-    /* ── Calculator ── */
-    .calc-section{padding:14px 12px;border-bottom:1px solid var(--border);}
-    .calc-input-row{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
-    .calc-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;}
-    .calc-input{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:6px;font-size:14px;font-weight:600;outline:none;width:100%;transition:border-color .15s;}
-    .calc-input:focus{border-color:#10b981;}
-    .calc-input::placeholder{color:var(--muted);font-weight:400;}
-    .calc-btn{width:100%;padding:10px;background:#10b981;border:none;color:#fff;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;transition:background .15s;letter-spacing:.02em;}
-    .calc-btn:hover{background:#059669;}
-    .calc-btn:disabled{background:var(--bg3);color:var(--muted);cursor:not-allowed;}
+    /* ═══════════════════════════════════════════════
+       CALCULATOR TAB
+    ═══════════════════════════════════════════════ */
+    .calc-section{padding:14px;border-bottom:1px solid var(--border);}
+    .calc-label{font-size:11px;font-weight:600;color:var(--muted2);margin-bottom:6px;}
+    .calc-input{
+      background:var(--bg3);border:1px solid var(--border2);
+      color:var(--text);padding:10px 14px;border-radius:var(--radius-sm);
+      font-size:16px;font-weight:700;outline:none;width:100%;
+      transition:border-color .15s;font-family:'Inter',sans-serif;
+    }
+    .calc-input:focus{border-color:var(--green);}
+    .calc-input::placeholder{color:var(--muted);font-weight:400;font-size:13px;}
+    .calc-btn{
+      width:100%;padding:12px;
+      background:linear-gradient(135deg,var(--green),var(--green2));
+      border:none;color:#fff;border-radius:var(--radius-sm);
+      font-size:14px;font-weight:800;cursor:pointer;
+      transition:all .15s;letter-spacing:.02em;
+      box-shadow:0 4px 16px rgba(16,185,129,.3);
+    }
+    .calc-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(16,185,129,.4);}
+    .calc-btn:active{transform:translateY(0);}
+    .calc-btn:disabled{background:var(--bg3);box-shadow:none;color:var(--muted);cursor:not-allowed;transform:none;}
     .risk-slider-wrap{display:flex;align-items:center;gap:10px;}
-    .risk-slider{flex:1;accent-color:#10b981;cursor:pointer;}
-    .risk-val-badge{background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:3px 8px;font-size:12px;font-weight:700;color:#10b981;min-width:40px;text-align:center;}
-    .action-card{margin:12px;border-radius:8px;padding:14px;text-align:center;border:2px solid;}
-    .action-card.LONG {background:rgba(38,166,154,.08);border-color:#26a69a40;}
-    .action-card.SHORT{background:rgba(239,83,80,.08); border-color:#ef535040;}
-    .action-card.WAIT {background:rgba(245,197,24,.05);border-color:#f5c51840;}
-    .action-text{font-size:14px;font-weight:800;letter-spacing:.03em;margin-bottom:4px;}
-    .action-text.LONG {color:#26a69a;} .action-text.SHORT{color:#ef5350;} .action-text.WAIT{color:#f5c518;}
-    .calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px;}
-    .calc-card{background:var(--bg3);border-radius:6px;padding:10px;text-align:center;}
-    .calc-card-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
-    .calc-card-value{font-size:15px;font-weight:800;}
-    .tp-table{width:100%;border-collapse:collapse;margin:0 12px;width:calc(100% - 24px);}
-    .tp-table th{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:6px 0;text-align:left;border-bottom:1px solid var(--border);}
-    .tp-table td{padding:8px 0;font-size:12px;border-bottom:1px solid var(--border);}
+    .risk-slider{flex:1;accent-color:var(--green);cursor:pointer;height:5px;}
+    .risk-val-badge{background:rgba(16,185,129,.15);border:1px solid #10b98130;border-radius:6px;padding:4px 10px;font-size:13px;font-weight:800;color:var(--green);min-width:44px;text-align:center;}
+    .action-card{border-radius:var(--radius);padding:14px;text-align:center;border:1px solid;}
+    .action-card.LONG {background:rgba(16,185,129,.06);border-color:#10b98130;}
+    .action-card.SHORT{background:rgba(239,68,68,.06); border-color:#ef444430;}
+    .action-card.WAIT {background:rgba(245,158,11,.05);border-color:#f59e0b30;}
+    .action-text{font-size:16px;font-weight:800;letter-spacing:.02em;}
+    .action-text.LONG {color:var(--green);} .action-text.SHORT{color:var(--red);} .action-text.WAIT{color:var(--yellow);}
+    .calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:12px;}
+    .calc-card{background:var(--bg3);border-radius:var(--radius-sm);padding:10px 12px;text-align:center;border:1px solid var(--border);}
+    .calc-card-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;font-weight:600;}
+    .calc-card-value{font-size:14px;font-weight:800;}
+    .tp-table{width:100%;border-collapse:collapse;}
+    .tp-table th{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:6px 0;text-align:left;border-bottom:1px solid var(--border);font-weight:700;}
+    .tp-table td{padding:8px 0;font-size:11px;border-bottom:1px solid var(--border);}
     .tp-table tr:last-child td{border-bottom:none;}
-    .risk-warn{margin:12px;padding:10px 12px;border-radius:6px;font-size:11px;line-height:1.5;background:rgba(245,197,24,.07);border:1px solid rgba(245,197,24,.25);color:#f5c518;}
-    .risk-warn.ok{background:rgba(38,166,154,.07);border-color:rgba(38,166,154,.25);color:#26a69a;}
-    .risk-warn.danger{background:rgba(239,83,80,.07);border-color:rgba(239,83,80,.25);color:#ef5350;}
-    .drawdown-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;font-size:11px;border-top:1px solid var(--border);}
-    .calc-placeholder{padding:24px 16px;text-align:center;color:var(--muted);font-size:12px;line-height:1.7;}
-    .calc-spinner{width:24px;height:24px;border:2px solid var(--bg3);border-top-color:#10b981;border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px;}
+    .risk-warn{margin:0 12px 12px;padding:10px 12px;border-radius:var(--radius-sm);font-size:11px;line-height:1.5;}
+    .risk-warn.ok    {background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.2);color:var(--green);}
+    .risk-warn       {background:rgba(245,158,11,.07); border:1px solid rgba(245,158,11,.2);color:var(--yellow);}
+    .risk-warn.danger{background:rgba(239,68,68,.07);  border:1px solid rgba(239,68,68,.2);color:var(--red);}
+    .drawdown-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;font-size:11px;border-top:1px solid var(--border);}
+    .calc-placeholder{padding:24px 16px;text-align:center;color:var(--muted);font-size:12px;line-height:1.8;}
+    .calc-spinner{width:28px;height:28px;border:2px solid var(--border2);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px;}
+    .how-to{padding:12px;border-top:1px solid var(--border);}
+    .how-to-item{display:flex;gap:10px;align-items:flex-start;padding:5px 0;font-size:12px;line-height:1.5;}
+    .how-to-num{width:22px;height:22px;border-radius:50%;background:var(--bg4);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
 
-    /* ── Chat ── */
+    /* ═══════════════════════════════════════════════
+       AI CHAT TAB
+    ═══════════════════════════════════════════════ */
     .chat-panel{display:flex;flex-direction:column;flex:1;min-height:0;}
-    .chat-messages{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:0;}
-    .chat-messages::-webkit-scrollbar{width:4px;}
-    .chat-messages::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:2px;}
+    .chat-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;min-height:0;}
     .msg{display:flex;gap:8px;animation:fadeUp .2s ease;}
-    @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
     .msg.user{flex-direction:row-reverse;}
-    .msg-avatar{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;margin-top:2px;}
-    .msg.ai .msg-avatar{background:var(--ai);color:#fff;}
-    .msg.user .msg-avatar{background:var(--blue);color:#fff;}
-    .msg-bubble{max-width:calc(100% - 38px);padding:9px 12px;border-radius:12px;font-size:12px;line-height:1.55;word-break:break-word;}
-    .msg.ai .msg-bubble{background:var(--bg3);color:var(--text);border-bottom-left-radius:3px;}
-    .msg.user .msg-bubble{background:#1e3a5f;color:#e0eeff;border-bottom-right-radius:3px;}
-    .msg-bubble strong{color:#fff;}
-    .typing-indicator{display:flex;gap:4px;padding:10px 12px;}
+    .msg-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;margin-top:1px;}
+    .msg.ai   .msg-avatar{background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;}
+    .msg.user .msg-avatar{background:linear-gradient(135deg,var(--blue),var(--green2));color:#fff;}
+    .msg-bubble{max-width:calc(100% - 40px);padding:10px 13px;border-radius:14px;font-size:12px;line-height:1.6;word-break:break-word;}
+    .msg.ai   .msg-bubble{background:var(--bg3);color:var(--text);border-bottom-left-radius:4px;border:1px solid var(--border);}
+    .msg.user .msg-bubble{background:linear-gradient(135deg,#1e3a5f,#1e2f4a);color:#e0eeff;border-bottom-right-radius:4px;}
+    .msg-bubble strong{color:#fff;font-weight:700;}
+    .typing-indicator{display:flex;gap:4px;padding:10px 13px;}
     .typing-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:typingBounce 1.2s ease-in-out infinite;}
     .typing-dot:nth-child(2){animation-delay:.2s;} .typing-dot:nth-child(3){animation-delay:.4s;}
-    @keyframes typingBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
-    .chat-suggestions{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 10px;}
-    .suggestion{background:var(--bg3);border:1px solid var(--border2);color:var(--muted);font-size:11px;padding:4px 10px;border-radius:12px;cursor:pointer;transition:all .15s;}
-    .suggestion:hover{background:#3d2b6b;border-color:#7c3aed50;color:#c4b5fd;}
-    .chat-input-row{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--border);flex-shrink:0;}
-    .chat-input{flex:1;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:20px;font-size:12px;outline:none;resize:none;font-family:inherit;line-height:1.4;max-height:80px;overflow-y:auto;transition:border-color .15s;}
-    .chat-input:focus{border-color:var(--ai);}
+    @keyframes typingBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-7px)}}
+    .chat-suggestions{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 10px;}
+    .suggestion{
+      background:var(--bg3);border:1px solid var(--border2);
+      color:var(--muted);font-size:11px;font-weight:600;
+      padding:5px 11px;border-radius:12px;cursor:pointer;
+      transition:all .15s;
+    }
+    .suggestion:hover{background:rgba(139,92,246,.15);border-color:#8b5cf640;color:#c4b5fd;}
+    .chat-input-row{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0;background:var(--bg2);}
+    .chat-input{
+      flex:1;background:var(--bg3);border:1px solid var(--border2);
+      color:var(--text);padding:9px 14px;border-radius:20px;
+      font-size:12px;outline:none;resize:none;font-family:'Inter',sans-serif;
+      line-height:1.4;max-height:80px;overflow-y:auto;
+      transition:border-color .15s;
+    }
+    .chat-input:focus{border-color:var(--purple);}
     .chat-input::placeholder{color:var(--muted);}
-    .send-btn{width:34px;height:34px;border-radius:50%;background:var(--ai);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s;align-self:flex-end;}
-    .send-btn:hover{background:#6d28d9;}
-    .send-btn:disabled{background:var(--bg3);cursor:not-allowed;}
+    .send-btn{
+      width:36px;height:36px;border-radius:50%;
+      background:linear-gradient(135deg,var(--purple),var(--blue));
+      border:none;color:#fff;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      flex-shrink:0;transition:all .15s;align-self:flex-end;
+      box-shadow:0 2px 10px rgba(139,92,246,.4);
+    }
+    .send-btn:hover{transform:scale(1.08);}
+    .send-btn:disabled{background:var(--bg3);box-shadow:none;cursor:not-allowed;transform:none;}
 
-    /* Signal banner */
-    .signal-banner{display:flex;align-items:center;gap:8px;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700;border:1px solid;white-space:nowrap;cursor:pointer;transition:all .2s;}
-    .signal-banner.BUY  {background:rgba(38,166,154,.15);border-color:#26a69a50;color:#26a69a;}
-    .signal-banner.SELL {background:rgba(239,83,80,.15); border-color:#ef535050;color:#ef5350;}
-    .signal-banner.HOLD {background:rgba(120,123,134,.1);border-color:#78787850;color:#787b86;}
-    .signal-banner .sig-pulse{width:8px;height:8px;border-radius:50%;flex-shrink:0;animation:sigPulse 1.5s ease-in-out infinite;}
-    .signal-banner.BUY  .sig-pulse{background:#26a69a;}
-    .signal-banner.SELL .sig-pulse{background:#ef5350;}
-    .signal-banner.HOLD .sig-pulse{background:#787b86;animation:none;}
-    @keyframes sigPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
-    .signal-banner .sig-urgency{font-size:10px;font-weight:600;padding:1px 5px;border-radius:4px;margin-left:2px;}
-    .signal-banner.BUY  .sig-urgency{background:#26a69a25;color:#26a69a;}
-    .signal-banner.SELL .sig-urgency{background:#ef535025;color:#ef5350;}
-    .signal-conf{font-size:10px;font-weight:400;opacity:.8;}
-    /* Countdown */
-    .refresh-countdown{font-size:10px;color:var(--muted);display:flex;align-items:center;gap:4px;}
-    .countdown-ring{position:relative;width:16px;height:16px;}
-    .countdown-ring svg{transform:rotate(-90deg);}
-    .countdown-ring circle{fill:none;stroke:var(--border2);stroke-width:2;}
-    .countdown-ring .progress{stroke:var(--blue);stroke-dasharray:44;stroke-dashoffset:44;transition:stroke-dashoffset 1s linear;}
-    #overlay{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:100;}
-    .spinner{width:32px;height:32px;border:3px solid var(--bg3);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;}
+    /* ═══════════════════════════════════════════════
+       LOADING OVERLAY
+    ═══════════════════════════════════════════════ */
+    #overlay{
+      position:fixed;inset:0;
+      background:var(--bg);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+      z-index:999;
+    }
+    .spinner{
+      width:40px;height:40px;
+      border:3px solid var(--border2);
+      border-top-color:var(--blue);
+      border-radius:50%;animation:spin .8s linear infinite;
+    }
     @keyframes spin{to{transform:rotate(360deg)}}
     #overlay.hidden{display:none;}
-
-    @media(max-width:768px){
-      .app{grid-template-columns:1fr;grid-template-rows:48px 1fr 50vh;}
-      .right-panel{border-left:none;border-top:1px solid var(--border);}
-      .ohlc-bar{display:none;}
-      html,body{overflow:auto;} .app{height:auto;} .chart-area{height:55vh;}
+    .loading-text{color:var(--muted);font-size:13px;font-weight:500;}
+    .loading-logo{font-size:24px;font-weight:800;color:#fff;margin-bottom:8px;letter-spacing:-.02em;}
+    .loading-logo span{
+      background:linear-gradient(135deg,var(--blue),var(--purple));
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;
     }
+
+    /* ═══════════════════════════════════════════════
+       MOBILE — bottom nav + full-screen views
+    ═══════════════════════════════════════════════ */
+    @media(max-width:768px){
+      body{overflow:hidden;}
+      .app{
+        display:flex;flex-direction:column;
+        height:100vh;height:100dvh;
+        grid-template-rows:none;grid-template-columns:none;
+      }
+      .topbar{
+        height:auto;min-height:52px;
+        padding:8px 14px;gap:8px;flex-wrap:wrap;order:0;
+      }
+      .logo-text{display:none;}
+      .divider{display:none;}
+      .sym{font-size:13px;}
+      .cur-price{font-size:17px;}
+      .ohlc-bar{display:none;}
+      .signal-conf{display:none;}
+      .refresh-countdown{display:none;}
+      .topbar-right{gap:6px;}
+
+      /* Chart fills remaining space */
+      .main{
+        flex:1;min-height:0;order:1;
+        display:flex;flex-direction:column;overflow:hidden;
+      }
+      .toolbar{
+        height:32px;padding:0 10px;gap:5px;
+        font-size:10px;
+      }
+      .ind-badge{font-size:10px;padding:2px 6px;}
+
+      /* Right panel becomes bottom sheet */
+      .right-panel{
+        height:auto;max-height:50vh;
+        border-left:none;border-top:2px solid var(--border2);
+        order:2;flex-shrink:0;
+      }
+      .rp-tabs{position:sticky;top:0;z-index:10;}
+      .rp-tab{font-size:10px;padding:9px 0;}
+
+      /* Bottom navigation bar */
+      .bottom-nav{
+        display:flex;
+        height:var(--bottom-nav-h);
+        background:var(--bg2);
+        border-top:1px solid var(--border);
+        order:3;flex-shrink:0;
+        safe-area-inset-bottom:env(safe-area-inset-bottom);
+      }
+      .bottom-nav-item{
+        flex:1;display:flex;flex-direction:column;
+        align-items:center;justify-content:center;
+        gap:3px;cursor:pointer;
+        color:var(--muted);font-size:10px;font-weight:600;
+        transition:color .15s;
+        -webkit-tap-highlight-color:transparent;
+      }
+      .bottom-nav-item.active{color:var(--blue);}
+      .bottom-nav-item.active .nav-icon{color:var(--blue);}
+      .nav-icon{font-size:18px;line-height:1;}
+    }
+    @media(min-width:769px){
+      .bottom-nav{display:none;}
+    }
+    /* Very small screens */
+    @media(max-width:480px){
+      .cur-price{font-size:16px;}
+      .signal-banner{padding:4px 9px;font-size:11px;}
+    }
+
+    /* ═══════════════════════════════════════════════
+       MISC
+    ═══════════════════════════════════════════════ */
+    .disclaimer{padding:12px;font-size:10px;color:var(--muted);line-height:1.5;margin-top:auto;}
   </style>
 </head>
 <body>
+
+<!-- Loading overlay -->
 <div id="overlay">
+  <div class="loading-logo">ETH <span>Trend AI</span></div>
   <div class="spinner"></div>
-  <div style="color:var(--muted);font-size:12px;">Loading ETH Trend AI…</div>
+  <div class="loading-text">Fetching live market data…</div>
 </div>
 
 <div class="app">
-  <!-- Topbar -->
+
+  <!-- ══════════════════ TOPBAR ══════════════════ -->
   <header class="topbar">
     <div class="logo">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
-      ETH Trend AI
+      <div class="logo-icon">⚡</div>
+      <span class="logo-text">ETH Trend AI</span>
     </div>
-    <div style="width:1px;height:20px;background:var(--border2)"></div>
+    <div class="divider"></div>
     <div class="sym">ETH/USD</div>
-    <div style="display:flex;align-items:baseline;gap:8px;">
+    <div class="price-row">
       <span class="cur-price" id="cur-price">—</span>
       <span class="chg flat" id="chg-24h">—</span>
-      <span class="chg flat" id="chg-7d" style="font-size:11px">7d —</span>
+      <span class="chg flat" id="chg-7d" style="font-size:10px">7d —</span>
     </div>
     <div class="ohlc-bar">
-      <div class="ohlc-item"><span>O</span><span id="ohlc-o">—</span></div>
-      <div class="ohlc-item"><span>H</span><span id="ohlc-h" style="color:var(--up)">—</span></div>
-      <div class="ohlc-item"><span>L</span><span id="ohlc-l" style="color:var(--down)">—</span></div>
-      <div class="ohlc-item"><span>C</span><span id="ohlc-c">—</span></div>
+      <div class="ohlc-item"><span>O</span><b id="ohlc-o">—</b></div>
+      <div class="ohlc-item"><span>H</span><b id="ohlc-h" style="color:var(--up)">—</b></div>
+      <div class="ohlc-item"><span>L</span><b id="ohlc-l" style="color:var(--down)">—</b></div>
+      <div class="ohlc-item"><span>C</span><b id="ohlc-c">—</b></div>
     </div>
     <div class="topbar-right">
       <div class="live-pill"><span class="dot"></span><span id="last-up">—</span></div>
-      <!-- Live signal banner -->
-      <div class="signal-banner HOLD" id="signal-banner" onclick="switchTab('analysis')" title="Click to see details">
+      <div class="signal-banner HOLD" id="signal-banner" onclick="switchTab('analysis')" title="Current signal">
         <span class="sig-pulse"></span>
         <span id="signal-action">—</span>
         <span class="signal-conf" id="signal-conf"></span>
-        <span class="sig-urgency" id="signal-urgency"></span>
+        <span class="sig-urgency" id="signal-urgency" style="display:none"></span>
       </div>
-      <!-- Refresh countdown -->
       <div class="refresh-countdown">
         <div class="countdown-ring">
-          <svg width="16" height="16" viewBox="0 0 16 16">
-            <circle cx="8" cy="8" r="6" stroke-width="2"/>
-            <circle class="progress" id="countdown-ring" cx="8" cy="8" r="6" stroke-width="2"/>
+          <svg width="18" height="18" viewBox="0 0 18 18">
+            <circle cx="9" cy="9" r="7" stroke-width="2.5"/>
+            <circle class="progress" id="countdown-ring" cx="9" cy="9" r="7" stroke-width="2.5"/>
           </svg>
         </div>
         <span id="countdown-txt">10:00</span>
       </div>
-      <button class="btn" onclick="loadData()">↻ Refresh</button>
+      <button class="btn" onclick="loadData()">↻</button>
     </div>
   </header>
 
-  <!-- Charts -->
+  <!-- ══════════════════ CHART AREA ══════════════════ -->
   <div class="main">
     <div class="toolbar">
-      <span style="font-size:11px;color:var(--muted);">Indicators:</span>
+      <span class="tb-label">Indicators:</span>
       <span class="ind-badge ind-ema9">EMA 9</span>
       <span class="ind-badge ind-ema21">EMA 21</span>
       <span class="ind-badge ind-ema50">EMA 50</span>
       <span class="ind-badge ind-ema200">EMA 200</span>
       <span class="ind-badge ind-bb">BB 20</span>
       <div class="tb-sep"></div>
-      <span style="font-size:11px;color:var(--muted);">RSI · MACD</span>
+      <span class="tb-label">RSI · MACD</span>
       <div class="tb-sep"></div>
-      <span id="pred-legend" style="font-size:11px;color:var(--muted);display:none;">
-        <span style="color:#f59e0b">━</span> Entry &nbsp;
-        <span style="color:#26a69a">━</span> TP &nbsp;
-        <span style="color:#ef5350">━</span> SL
+      <span id="pred-legend">
+        <span style="color:var(--yellow)">━</span> Entry &nbsp;
+        <span style="color:var(--green)">━</span> TP &nbsp;
+        <span style="color:var(--red)">━</span> SL
       </span>
     </div>
     <div class="chart-area">
@@ -338,17 +602,17 @@
         <div id="chart-main" style="width:100%;height:100%;"></div>
       </div>
       <div class="chart-wrap" style="flex:2;min-height:0;border-top:1px solid var(--border);">
-        <div style="position:absolute;top:4px;left:10px;font-size:10px;color:var(--muted);z-index:5;">RSI (14)</div>
+        <div class="chart-sub-label">RSI (14)</div>
         <div id="chart-rsi" style="width:100%;height:100%;"></div>
       </div>
       <div class="chart-wrap" style="flex:2;min-height:0;border-top:1px solid var(--border);">
-        <div style="position:absolute;top:4px;left:10px;font-size:10px;color:var(--muted);z-index:5;">MACD (12,26,9)</div>
+        <div class="chart-sub-label">MACD (12,26,9)</div>
         <div id="chart-macd" style="width:100%;height:100%;"></div>
       </div>
     </div>
   </div>
 
-  <!-- Right Panel -->
+  <!-- ══════════════════ RIGHT PANEL ══════════════════ -->
   <aside class="right-panel">
     <div class="rp-tabs">
       <div class="rp-tab active"   id="tab-analysis" onclick="switchTab('analysis')">Analysis</div>
@@ -357,109 +621,101 @@
       <div class="rp-tab ai-tab"   id="tab-chat"     onclick="switchTab('chat')">🤖 AI</div>
     </div>
 
-    <!-- ── Analysis Tab ── -->
+    <!-- ── Analysis ── -->
     <div class="rp-content active" id="content-analysis">
-      <!-- Trend -->
       <div class="sb-section">
         <div class="sb-title">Trend Analysis</div>
         <div class="trend-card">
-          <div class="trend-label">Current Trend</div>
+          <div class="label" style="margin-bottom:5px;">Current Trend</div>
           <div class="trend-value" id="trend-val">—</div>
         </div>
         <div class="metric-grid">
-          <div class="metric"><div class="metric-label">Reversal Risk</div><div class="metric-value" id="risk-val">—</div></div>
-          <div class="metric"><div class="metric-label">Confidence</div><div class="metric-value" style="color:var(--blue)" id="conf-val">—</div></div>
+          <div class="metric"><div class="label">Reversal Risk</div><div class="metric-value" id="risk-val">—</div></div>
+          <div class="metric"><div class="label">Confidence</div><div class="metric-value" style="color:var(--blue)" id="conf-val">—</div></div>
         </div>
         <div class="score-wrap">
-          <div class="score-label"><span>Bear</span><span id="score-num">—</span><span>Bull</span></div>
+          <div class="score-label">
+            <span class="label">Bear</span>
+            <span style="font-size:11px;font-weight:700;color:var(--text)" id="score-num">—</span>
+            <span class="label">Bull</span>
+          </div>
           <div class="score-track"><div class="score-fill" id="score-fill" style="width:50%"></div></div>
         </div>
       </div>
 
-      <!-- ML Engine -->
       <div class="sb-section">
         <div class="sb-title">🧠 ML Engine (RF + GBM)</div>
-        <div class="ml-card">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
             <div class="ml-direction NEUTRAL" id="ml-direction">—</div>
             <span class="strength-pill strength-WEAK" id="ml-strength">—</span>
           </div>
           <div class="prob-bar-wrap">
-            <span style="font-size:10px;color:var(--muted);">Confidence</span>
+            <span class="label">Confidence</span>
             <div class="prob-bar-track"><div class="prob-bar-fill" id="ml-prob-bar" style="width:50%;background:var(--muted)"></div></div>
-            <span style="font-size:12px;font-weight:700;" id="ml-prob-val">—</span>
+            <span style="font-size:13px;font-weight:800;" id="ml-prob-val">—</span>
           </div>
-          <div class="accuracy-row">
-            <span>Model accuracy (CV)</span>
-            <span id="ml-accuracy" style="color:var(--blue)">—</span>
-          </div>
+          <div class="accuracy-row"><span>Model accuracy (CV)</span><span id="ml-accuracy" style="color:var(--blue);font-weight:700">—</span></div>
         </div>
-        <div class="sb-title" style="margin-top:4px;">Top Driving Features</div>
+        <div class="sb-title" style="margin-top:10px;">Top Features</div>
         <div id="ml-features"></div>
       </div>
 
-      <!-- MTF -->
       <div class="sb-section">
         <div class="sb-title">📊 Multi-Timeframe</div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
           <div>
             <div class="conf-big NEUTRAL" id="mtf-confluence">—</div>
-            <div style="font-size:10px;color:var(--muted);margin-top:2px;">Confluence</div>
+            <div class="label" style="margin-top:3px;">Confluence</div>
           </div>
           <div style="text-align:center;">
             <div class="quality-badge quality-D" id="mtf-quality">D</div>
-            <div style="font-size:10px;color:var(--muted);margin-top:4px;">Setup Quality</div>
+            <div class="label" style="margin-top:5px;">Setup Quality</div>
           </div>
         </div>
         <div id="mtf-rows"></div>
       </div>
 
-      <!-- Patterns -->
       <div class="sb-section">
         <div class="sb-title">🕯 Detected Patterns</div>
-        <div id="patterns-list"><div style="font-size:11px;color:var(--muted);">Scanning…</div></div>
+        <div id="patterns-list"><div style="font-size:11px;color:var(--muted)">Scanning…</div></div>
       </div>
 
-      <!-- Signals -->
       <div class="sb-section">
         <div class="sb-title">Signal Breakdown</div>
         <div id="signals-list"></div>
       </div>
 
-      <!-- Warnings -->
       <div class="sb-section">
         <div class="sb-title">⚠ Reversal Warnings</div>
         <div id="warnings-list"></div>
       </div>
 
-      <!-- Rec -->
       <div class="sb-section">
         <div class="sb-title">Recommendation</div>
         <div class="rec-box" id="rec-text">—</div>
       </div>
-      <div style="padding:12px;font-size:10px;color:var(--muted);line-height:1.5;margin-top:auto;">
-        For informational purposes only. Not financial advice.
-      </div>
+      <div class="disclaimer">For informational purposes only. Not financial advice.</div>
     </div>
 
-    <!-- ── Predict Tab ── -->
+    <!-- ── Predict ── -->
     <div class="rp-content" id="content-predict">
       <div class="forecast-card">
-        <div class="trend-label">Trend Forecast</div>
+        <div class="label" style="margin-bottom:6px;">Trend Forecast</div>
         <div class="forecast-badge NEUTRAL" id="forecast-badge">—</div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:8px;" id="forecast-horizon">—</div>
         <div class="conf-bar-wrap">
-          <span style="font-size:10px;color:var(--muted);">Confidence</span>
+          <span class="label">Confidence</span>
           <div class="conf-bar-track"><div class="conf-bar-fill" id="conf-bar" style="width:0%"></div></div>
           <span class="conf-pct" id="conf-pct">—</span>
         </div>
       </div>
-      <div style="padding:0 12px 12px;">
+      <div style="padding:0 14px 12px;">
         <div class="sb-title" style="margin-bottom:6px;">Entry Zone</div>
         <div class="entry-band">
           <div class="entry-title">Best Entry Range</div>
           <div class="entry-price" id="entry-range">—</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;" id="entry-note">—</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:5px;" id="entry-note">—</div>
         </div>
       </div>
       <div class="sb-section" style="padding-top:0;">
@@ -478,59 +734,52 @@
         <div class="srlist" id="resistance-list"></div>
       </div>
       <div class="pred-summary" id="pred-summary">—</div>
-      <div style="padding:12px;font-size:10px;color:var(--muted);line-height:1.5;margin-top:auto;">
-        Predictions based on technical indicators + ML. Not financial advice.
-      </div>
+      <div class="disclaimer">Predictions based on technical indicators + ML. Not financial advice.</div>
     </div>
 
-    <!-- ── Calculator Tab ── -->
+    <!-- ── Calculator ── -->
     <div class="rp-content" id="content-calc">
-      <!-- Inputs -->
       <div class="calc-section">
         <div class="sb-title">💰 Position Size Calculator</div>
-        <div class="calc-input-row">
-          <div>
-            <div class="calc-label">Your Account Balance (USD)</div>
-            <input class="calc-input" id="calc-balance" type="number" placeholder="e.g. 1000" min="1" step="1"/>
-          </div>
+        <div style="margin-bottom:12px;">
+          <div class="calc-label">Your Account Balance (USD)</div>
+          <input class="calc-input" id="calc-balance" type="number" inputmode="decimal" placeholder="e.g. 1000" min="1" step="1"/>
         </div>
-        <div class="calc-input-row">
-          <div>
-            <div class="calc-label">Risk Per Trade: <span id="risk-pct-display">2</span>%</div>
-            <div class="risk-slider-wrap">
-              <input class="risk-slider" id="risk-slider" type="range" min="0.5" max="10" step="0.5" value="2"
-                oninput="document.getElementById('risk-pct-display').textContent=this.value"/>
-              <span class="risk-val-badge" id="risk-badge">2%</span>
-            </div>
+        <div style="margin-bottom:14px;">
+          <div class="calc-label">Risk Per Trade: <span id="risk-pct-display">2</span>%</div>
+          <div class="risk-slider-wrap">
+            <input class="risk-slider" id="risk-slider" type="range" min="0.5" max="10" step="0.5" value="2"
+              oninput="document.getElementById('risk-pct-display').textContent=this.value;document.getElementById('risk-badge').textContent=this.value+'%'"/>
+            <span class="risk-val-badge" id="risk-badge">2%</span>
           </div>
         </div>
         <button class="calc-btn" id="calc-btn" onclick="runCalculator()">Calculate Trade Plan</button>
       </div>
-
-      <!-- Results -->
       <div id="calc-results">
         <div class="calc-placeholder">
-          Enter your balance above and click Calculate to get your exact trade plan — lot size, risk amount, profit targets, and what action to take.
+          Enter your balance and click Calculate to get your exact lot size, risk amount, and profit targets.
         </div>
       </div>
     </div>
 
-    <!-- ── AI Chat Tab ── -->
+    <!-- ── AI Chat ── -->
     <div class="rp-content" id="content-chat">
       <div class="chat-panel">
         <div class="chat-messages" id="chat-messages">
           <div class="msg ai">
             <div class="msg-avatar">🤖</div>
-            <div class="msg-bubble"><strong>ETH Analyst AI — powered by ML + multi-timeframe analysis.</strong><br>
-            Ask me about entry/exit levels, what patterns mean, or whether signals agree across timeframes.</div>
+            <div class="msg-bubble">
+              <strong>ETH Analyst AI</strong> — powered by ML + multi-timeframe analysis.<br>
+              I can see your live chart, signals, and entry/exit levels. Ask me anything.
+            </div>
           </div>
         </div>
         <div class="chat-suggestions" id="chat-suggestions">
           <span class="suggestion" onclick="sendSuggestion(this)">Where should I enter?</span>
           <span class="suggestion" onclick="sendSuggestion(this)">Do all timeframes agree?</span>
-          <span class="suggestion" onclick="sendSuggestion(this)">What is the ML model saying?</span>
-          <span class="suggestion" onclick="sendSuggestion(this)">Explain the patterns detected</span>
-          <span class="suggestion" onclick="sendSuggestion(this)">What's my best R:R trade?</span>
+          <span class="suggestion" onclick="sendSuggestion(this)">What is the ML saying?</span>
+          <span class="suggestion" onclick="sendSuggestion(this)">Explain the patterns</span>
+          <span class="suggestion" onclick="sendSuggestion(this)">Best R:R trade setup?</span>
         </div>
         <div class="chat-input-row">
           <textarea class="chat-input" id="chat-input" placeholder="Ask about ETH…" rows="1"
@@ -544,7 +793,24 @@
       </div>
     </div>
   </aside>
-</div>
+
+  <!-- ══════════════════ MOBILE BOTTOM NAV ══════════════════ -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <div class="bottom-nav-item active" id="nav-analysis" onclick="mobileNav('analysis')">
+      <span class="nav-icon">📊</span><span>Analysis</span>
+    </div>
+    <div class="bottom-nav-item" id="nav-predict" onclick="mobileNav('predict')">
+      <span class="nav-icon">🎯</span><span>Predict</span>
+    </div>
+    <div class="bottom-nav-item" id="nav-calc" onclick="mobileNav('calc')">
+      <span class="nav-icon">💰</span><span>Calc</span>
+    </div>
+    <div class="bottom-nav-item" id="nav-chat" onclick="mobileNav('chat')">
+      <span class="nav-icon">🤖</span><span>AI</span>
+    </div>
+  </nav>
+
+</div><!-- .app -->
 
 <script>
 // ── Tab switching ─────────────────────────────────────────────────────────────
@@ -559,13 +825,19 @@ function switchTab(tab) {
   if(tab==='chat'){scrollChatToBottom();document.getElementById('chat-input').focus();}
 }
 
+function mobileNav(tab) {
+  document.querySelectorAll('.bottom-nav-item').forEach(i=>i.classList.remove('active'));
+  document.getElementById('nav-'+tab).classList.add('active');
+  switchTab(tab);
+}
+
 // ── Charts ────────────────────────────────────────────────────────────────────
 const COPTS=()=>({
-  layout:{background:{color:'#131722'},textColor:'#787b86'},
-  grid:{vertLines:{color:'#1e222d'},horzLines:{color:'#1e222d'}},
+  layout:{background:{color:'#0f1117'},textColor:'#64748b'},
+  grid:{vertLines:{color:'#1e2535'},horzLines:{color:'#1e2535'}},
   crosshair:{mode:1},
-  rightPriceScale:{borderColor:'#2a2e39'},
-  timeScale:{borderColor:'#2a2e39',timeVisible:true,secondsVisible:false},
+  rightPriceScale:{borderColor:'#1e2535'},
+  timeScale:{borderColor:'#1e2535',timeVisible:true,secondsVisible:false},
   handleScroll:true,handleScale:true,
 });
 
@@ -587,19 +859,19 @@ function initCharts(){
       [chartMain,chartRsi,chartMacd].forEach((dst,di)=>{if(di!==si)dst.timeScale().setVisibleLogicalRange(range);});
     });
   });
-  candleSeries=chartMain.addCandlestickSeries({upColor:'#26a69a',downColor:'#ef5350',borderUpColor:'#26a69a',borderDownColor:'#ef5350',wickUpColor:'#26a69a',wickDownColor:'#ef5350'});
-  ema9S  =chartMain.addLineSeries({color:'#2196f3',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
-  ema21S =chartMain.addLineSeries({color:'#ff9800',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
-  ema50S =chartMain.addLineSeries({color:'#9c27b0',lineWidth:1.5,priceLineVisible:false,lastValueVisible:false});
-  ema200S=chartMain.addLineSeries({color:'#f44336',lineWidth:2,priceLineVisible:false,lastValueVisible:false});
-  bbUpS =chartMain.addLineSeries({color:'rgba(38,166,154,0.5)',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
-  bbMidS=chartMain.addLineSeries({color:'rgba(38,166,154,0.3)',lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:false});
-  bbLowS=chartMain.addLineSeries({color:'rgba(38,166,154,0.5)',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
-  rsiSeries=chartRsi.addLineSeries({color:'#ba68c8',lineWidth:1.5,priceLineVisible:false,lastValueVisible:true});
-  rsiOb=chartRsi.addLineSeries({color:'rgba(239,83,80,0.4)',lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:false});
-  rsiOs=chartRsi.addLineSeries({color:'rgba(38,166,154,0.4)',lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:false});
-  macdSeries=chartMacd.addLineSeries({color:'#2196f3',lineWidth:1.5,priceLineVisible:false,lastValueVisible:true});
-  macdSigS  =chartMacd.addLineSeries({color:'#ff9800',lineWidth:1,priceLineVisible:false,lastValueVisible:true});
+  candleSeries=chartMain.addCandlestickSeries({upColor:'#10b981',downColor:'#ef4444',borderUpColor:'#10b981',borderDownColor:'#ef4444',wickUpColor:'#10b981',wickDownColor:'#ef4444'});
+  ema9S  =chartMain.addLineSeries({color:'#3b82f6',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+  ema21S =chartMain.addLineSeries({color:'#f97316',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+  ema50S =chartMain.addLineSeries({color:'#a855f7',lineWidth:1.5,priceLineVisible:false,lastValueVisible:false});
+  ema200S=chartMain.addLineSeries({color:'#ef4444',lineWidth:2,priceLineVisible:false,lastValueVisible:false});
+  bbUpS =chartMain.addLineSeries({color:'rgba(16,185,129,0.4)',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+  bbMidS=chartMain.addLineSeries({color:'rgba(16,185,129,0.25)',lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:false});
+  bbLowS=chartMain.addLineSeries({color:'rgba(16,185,129,0.4)',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+  rsiSeries=chartRsi.addLineSeries({color:'#a855f7',lineWidth:1.5,priceLineVisible:false,lastValueVisible:true});
+  rsiOb=chartRsi.addLineSeries({color:'rgba(239,68,68,0.4)',lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:false});
+  rsiOs=chartRsi.addLineSeries({color:'rgba(16,185,129,0.4)',lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:false});
+  macdSeries=chartMacd.addLineSeries({color:'#3b82f6',lineWidth:1.5,priceLineVisible:false,lastValueVisible:true});
+  macdSigS  =chartMacd.addLineSeries({color:'#f97316',lineWidth:1,priceLineVisible:false,lastValueVisible:true});
   macdHistS =chartMacd.addHistogramSeries({priceLineVisible:false,lastValueVisible:false});
   chartsInited=true;
 }
@@ -620,7 +892,7 @@ function setData(candles){
   rsiOs.setData([{time:t0,value:30},{time:t1,value:30}]);
   macdSeries.setData(candles.filter(c=>ok(c.macd)).map(c=>({time:c.time,value:c.macd})));
   macdSigS.setData(candles.filter(c=>ok(c.macd_sig)).map(c=>({time:c.time,value:c.macd_sig})));
-  macdHistS.setData(candles.filter(c=>ok(c.macd_hist)).map(c=>({time:c.time,value:c.macd_hist,color:c.macd_hist>=0?'rgba(38,166,154,0.7)':'rgba(239,83,80,0.7)'})));
+  macdHistS.setData(candles.filter(c=>ok(c.macd_hist)).map(c=>({time:c.time,value:c.macd_hist,color:c.macd_hist>=0?'rgba(16,185,129,0.7)':'rgba(239,68,68,0.7)'})));
   chartMain.timeScale().fitContent();
   chartRsi.timeScale().fitContent();
   chartMacd.timeScale().fitContent();
@@ -637,10 +909,10 @@ function drawPredLines(p){
   const add=(price,color,title,style=0)=>{predLines.push(candleSeries.createPriceLine({price,color,lineWidth:1,lineStyle:style,axisLabelVisible:true,title}));};
   add(p.entry_high,'#f59e0b','Entry Hi',2);
   add(p.entry_low, '#f59e0b','Entry Lo',2);
-  add(p.tp1,'#26a69a','TP1');
-  add(p.tp2,'#26a69a','TP2');
-  add(p.tp3,'#26a69a','TP3');
-  add(p.stop_loss,'#ef5350','SL');
+  add(p.tp1,'#10b981','TP1');
+  add(p.tp2,'#10b981','TP2');
+  add(p.tp3,'#10b981','TP3');
+  add(p.stop_loss,'#ef4444','SL');
 }
 function togglePredLines(show){predLines.forEach(pl=>{try{pl.applyOptions({lineVisible:show,axisLabelVisible:show});}catch(e){}});}
 
@@ -657,7 +929,6 @@ function renderAnalysis(d){
   const b7=document.getElementById('chg-7d');
   b7.textContent='7d '+(m.change_7d>=0?'+':'')+fmt(m.change_7d)+'%';
   b7.className='chg '+(m.change_7d>0?'up':m.change_7d<0?'down':'flat');
-
   const tEl=document.getElementById('trend-val');
   tEl.textContent=(TREND_EMOJI[d.trend]||'')+' '+d.trend.replace(/_/g,' ');
   tEl.className='trend-value '+d.trend;
@@ -667,16 +938,14 @@ function renderAnalysis(d){
   document.getElementById('conf-val').textContent=d.confidence+'%';
   const pct=Math.min(100,Math.max(0,(d.score+10)/20*100));
   document.getElementById('score-fill').style.width=pct+'%';
-  document.getElementById('score-fill').style.background=d.score>0?'#26a69a':d.score<0?'#ef5350':'#787b86';
+  document.getElementById('score-fill').style.background=d.score>0?'#10b981':d.score<0?'#ef4444':'#64748b';
   document.getElementById('score-num').textContent='Score: '+(d.score>0?'+':'')+d.score;
   document.getElementById('last-up').textContent=new Date().toLocaleTimeString();
-
   document.getElementById('signals-list').innerHTML=d.signals.map(s=>{
     const c=s.score>0?'bull':s.score<0?'bear':'neut';
     const sc=s.score>0?'pos':s.score<0?'neg':'neu';
     return `<div class="signal-row"><span class="sig-dot ${c}"></span><div style="flex:1;min-width:0;"><div style="display:flex;justify-content:space-between;"><span class="sig-name">${s.name}</span><span class="sig-score ${sc}">${s.score>0?'+':''}${s.score}</span></div><div class="sig-interp">${s.interpretation}</div></div></div>`;
   }).join('');
-
   const wl=document.getElementById('warnings-list');
   wl.innerHTML=d.reversal_warnings.length
     ?d.reversal_warnings.map(w=>`<div class="warn-item"><span>⚠</span><span>${w}</span></div>`).join('')
@@ -689,7 +958,7 @@ function renderML(ml){
   const emoji={BULLISH:'📈 BULLISH',BEARISH:'📉 BEARISH',NEUTRAL:'➡️ NEUTRAL'};
   dir.textContent=emoji[ml.direction]||ml.direction;
   dir.className='ml-direction '+ml.direction;
-  const color=ml.direction==='BULLISH'?'#26a69a':ml.direction==='BEARISH'?'#ef5350':'#f5c518';
+  const color=ml.direction==='BULLISH'?'#10b981':ml.direction==='BEARISH'?'#ef4444':'#f59e0b';
   document.getElementById('ml-prob-bar').style.width=ml.probability+'%';
   document.getElementById('ml-prob-bar').style.background=color;
   document.getElementById('ml-prob-val').textContent=ml.probability+'%';
@@ -698,10 +967,9 @@ function renderML(ml){
   const s=document.getElementById('ml-strength');
   s.textContent=ml.signal_strength;
   s.className='strength-pill strength-'+ml.signal_strength;
-  document.getElementById('ml-features').innerHTML=(ml.feature_importances||[]).map(f=>{
-    const w=Math.round(f.importance*3);
-    return `<div class="fi-row"><div class="fi-bar" style="width:${Math.max(4,f.importance*4)}px"></div><span class="fi-name">${f.feature}</span><span class="fi-val">${f.importance}%</span></div>`;
-  }).join('');
+  document.getElementById('ml-features').innerHTML=(ml.feature_importances||[]).map(f=>
+    `<div class="fi-row"><div class="fi-bar" style="width:${Math.max(4,f.importance*4)}px"></div><span class="fi-name">${f.feature}</span><span class="fi-val">${f.importance}%</span></div>`
+  ).join('');
 }
 
 function renderMTF(mtf){
@@ -722,17 +990,11 @@ function renderMTF(mtf){
 
 function renderPatterns(pats){
   const el=document.getElementById('patterns-list');
-  if(!pats||!pats.length){
-    el.innerHTML='<div style="font-size:11px;color:var(--muted);">No significant patterns detected.</div>';
-    return;
-  }
+  if(!pats||!pats.length){el.innerHTML='<div style="font-size:11px;color:var(--muted)">No significant patterns detected.</div>';return;}
   const typeEmoji={BULLISH:'🟢',BEARISH:'🔴',NEUTRAL:'🟡'};
   el.innerHTML=pats.map(p=>`
     <div class="pattern-card ${p.type}">
-      <div class="pattern-name">
-        ${typeEmoji[p.type]||''} ${p.name}
-        <span class="strength-pill strength-${p.strength}" style="margin-left:auto">${p.strength}</span>
-      </div>
+      <div class="pattern-name">${typeEmoji[p.type]||''} ${p.name}<span class="strength-pill strength-${p.strength}" style="margin-left:auto">${p.strength}</span></div>
       <div class="pattern-desc">${p.description}</div>
     </div>`).join('');
 }
@@ -743,228 +1005,143 @@ function renderPrediction(p){
   badge.textContent=fEmoji[p.forecast]||p.forecast;
   badge.className='forecast-badge '+p.forecast;
   document.getElementById('forecast-horizon').textContent=p.forecast_horizon;
-  const bc=p.forecast==='BULLISH'?'#26a69a':p.forecast==='BEARISH'?'#ef5350':'#f5c518';
+  const bc=p.forecast==='BULLISH'?'#10b981':p.forecast==='BEARISH'?'#ef4444':'#f59e0b';
   document.getElementById('conf-bar').style.width=p.forecast_confidence+'%';
   document.getElementById('conf-bar').style.background=bc;
   document.getElementById('conf-pct').textContent=p.forecast_confidence+'%';
   document.getElementById('conf-pct').style.color=bc;
   document.getElementById('entry-range').textContent=`$${fmt(p.entry_low)} – $${fmt(p.entry_high)}`;
   document.getElementById('entry-note').textContent=p.entry_note;
-
   const rows=[
-    {label:'🟢 TP1',price:p.tp1,pct:p.tp1_pct,rr:p.rr1,color:'#26a69a'},
-    {label:'🟢 TP2',price:p.tp2,pct:p.tp2_pct,rr:p.rr2,color:'#26a69a'},
-    {label:'🟢 TP3',price:p.tp3,pct:p.tp3_pct,rr:p.rr3,color:'#26a69a'},
-    {label:'🔴 SL', price:p.stop_loss,pct:p.stop_pct,rr:null,color:'#ef5350'},
+    {label:'🟢 TP1',price:p.tp1,pct:p.tp1_pct,rr:p.rr1,color:'#10b981'},
+    {label:'🟢 TP2',price:p.tp2,pct:p.tp2_pct,rr:p.rr2,color:'#10b981'},
+    {label:'🟢 TP3',price:p.tp3,pct:p.tp3_pct,rr:p.rr3,color:'#10b981'},
+    {label:'🔴 SL', price:p.stop_loss,pct:p.stop_pct,rr:null,color:'#ef4444'},
   ];
   document.getElementById('targets-body').innerHTML=rows.map(r=>{
-    const rc=r.rr!==null?(r.rr>=2?'#26a69a':r.rr>=1.5?'#4caf50':r.rr>=1?'#f5c518':'#ef5350'):'';
+    const rc=r.rr!==null?(r.rr>=2?'#10b981':r.rr>=1.5?'#34d399':r.rr>=1?'#f59e0b':'#ef4444'):'';
     const rrl=r.rr!==null?`<span class="rr-pill" style="color:${rc};border-color:${rc}40">1:${r.rr}</span>`:'<span style="color:var(--muted)">—</span>';
-    return `<tr><td style="color:${r.color};font-weight:600">${r.label}</td><td style="font-weight:700">$${fmt(r.price)}</td><td style="color:${r.pct>=0?'#26a69a':'#ef5350'}">${r.pct>=0?'+':''}${r.pct}%</td><td>${rrl}</td></tr>`;
+    return `<tr><td style="color:${r.color};font-weight:700">${r.label}</td><td style="font-weight:700">$${fmt(r.price)}</td><td style="color:${r.pct>=0?'#10b981':'#ef4444'}">${r.pct>=0?'+':''}${r.pct}%</td><td>${rrl}</td></tr>`;
   }).join('');
-
   const srRow=(s,type)=>{
-    const c=type==='sup'?'#26a69a':'#ef5350';
-    return `<div class="sr-row"><span style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0;display:inline-block;"></span><span class="sr-price" style="color:${c}">$${fmt(s.price)}</span><span class="sr-label">${s.label}</span><span class="sr-strength ${s.strength}">${s.strength}</span></div>`;
+    const c=type==='sup'?'#10b981':'#ef4444';
+    return `<div class="sr-row"><span style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0;display:inline-block;box-shadow:0 0 5px ${c}"></span><span class="sr-price" style="color:${c}">$${fmt(s.price)}</span><span class="sr-label">${s.label}</span><span class="sr-strength ${s.strength}">${s.strength}</span></div>`;
   };
   document.getElementById('support-list').innerHTML=(p.supports||[]).length?(p.supports.map(s=>srRow(s,'sup')).join('')):'<div style="font-size:11px;color:var(--muted)">None identified</div>';
   document.getElementById('resistance-list').innerHTML=(p.resistances||[]).length?(p.resistances.map(r=>srRow(r,'res')).join('')):'<div style="font-size:11px;color:var(--muted)">None identified</div>';
   document.getElementById('pred-summary').innerHTML='<strong>Summary:</strong> '+p.summary;
 }
 
-// ── Signal banner + chart markers ────────────────────────────────────────────
-let signalMarkers = [];
-
-function renderSignalBanner(sig) {
-  const banner = document.getElementById('signal-banner');
-  banner.className = 'signal-banner ' + sig.action;
-  const emoji = {BUY:'🟢 BUY', SELL:'🔴 SELL', HOLD:'⏸ HOLD'}[sig.action] || sig.action;
-  document.getElementById('signal-action').textContent = emoji;
-  document.getElementById('signal-conf').textContent =
-    sig.action !== 'HOLD' ? `${sig.confirmations}/${sig.total_checks} signals` : '';
-  const urgEl = document.getElementById('signal-urgency');
-  urgEl.textContent = sig.urgency;
-  urgEl.style.display = sig.urgency === 'WAIT' ? 'none' : '';
+// ── Signal banner ─────────────────────────────────────────────────────────────
+function renderSignalBanner(sig){
+  const banner=document.getElementById('signal-banner');
+  banner.className='signal-banner '+sig.action;
+  const emoji={BUY:'🟢 BUY',SELL:'🔴 SELL',HOLD:'⏸ HOLD'}[sig.action]||sig.action;
+  document.getElementById('signal-action').textContent=emoji;
+  document.getElementById('signal-conf').textContent=sig.action!=='HOLD'?`${sig.confirmations}/${sig.total_checks}`:'';
+  const urgEl=document.getElementById('signal-urgency');
+  urgEl.textContent=sig.urgency;
+  urgEl.style.display=sig.urgency==='WAIT'?'none':'';
 }
 
-function drawChartSignals(chartSigs) {
-  if (!chartsInited || !candleSeries) return;
-  const markers = chartSigs.map(s => ({
-    time: s.time,
-    position: s.action === 'BUY' ? 'belowBar' : 'aboveBar',
-    color: s.action === 'BUY' ? '#26a69a' : '#ef5350',
-    shape: s.action === 'BUY' ? 'arrowUp' : 'arrowDown',
-    text: s.action === 'BUY'
-      ? (s.strength === 'STRONG' ? '▲ BUY' : '△ buy')
-      : (s.strength === 'STRONG' ? '▼ SELL' : '▽ sell'),
-    size: s.strength === 'STRONG' ? 2 : 1,
+function drawChartSignals(chartSigs){
+  if(!chartsInited||!candleSeries)return;
+  const markers=chartSigs.map(s=>({
+    time:s.time,
+    position:s.action==='BUY'?'belowBar':'aboveBar',
+    color:s.action==='BUY'?'#10b981':'#ef4444',
+    shape:s.action==='BUY'?'arrowUp':'arrowDown',
+    text:s.action==='BUY'?(s.strength==='STRONG'?'▲ BUY':'△ buy'):(s.strength==='STRONG'?'▼ SELL':'▽ sell'),
+    size:s.strength==='STRONG'?2:1,
   }));
-  try { candleSeries.setMarkers(markers); } catch(e) {}
+  try{candleSeries.setMarkers(markers);}catch(e){}
 }
 
-// ── Countdown timer ───────────────────────────────────────────────────────────
-const REFRESH_SEC = 600;
-let countdownSec = REFRESH_SEC;
-const ringCircumference = 44;
-
-function startCountdown() {
-  countdownSec = REFRESH_SEC;
-  const ring = document.getElementById('countdown-ring');
-  const txt  = document.getElementById('countdown-txt');
+// ── Countdown ─────────────────────────────────────────────────────────────────
+const REFRESH_SEC=600;
+let countdownSec=REFRESH_SEC;
+function startCountdown(){
+  countdownSec=REFRESH_SEC;
+  const ring=document.getElementById('countdown-ring');
+  const txt=document.getElementById('countdown-txt');
   clearInterval(window._countdownTimer);
-  window._countdownTimer = setInterval(() => {
+  window._countdownTimer=setInterval(()=>{
     countdownSec--;
-    if (countdownSec <= 0) { countdownSec = REFRESH_SEC; loadData(); }
-    const mins = Math.floor(countdownSec / 60);
-    const secs = countdownSec % 60;
-    txt.textContent = `${mins}:${secs.toString().padStart(2,'0')}`;
-    const offset = ringCircumference - (ringCircumference * (REFRESH_SEC - countdownSec) / REFRESH_SEC);
-    if (ring) ring.style.strokeDashoffset = offset;
-  }, 1000);
+    if(countdownSec<=0){countdownSec=REFRESH_SEC;loadData();}
+    const m=Math.floor(countdownSec/60),s=countdownSec%60;
+    txt.textContent=`${m}:${s.toString().padStart(2,'0')}`;
+    const offset=44-(44*(REFRESH_SEC-countdownSec)/REFRESH_SEC);
+    if(ring)ring.style.strokeDashoffset=offset;
+  },1000);
 }
 
 // ── Calculator ────────────────────────────────────────────────────────────────
-document.getElementById('risk-slider').addEventListener('input', function(){
-  document.getElementById('risk-pct-display').textContent = this.value;
-  document.getElementById('risk-badge').textContent = this.value + '%';
-});
-
-async function runCalculator() {
-  const balInput = document.getElementById('calc-balance');
-  const balance  = parseFloat(balInput.value);
-  const riskPct  = parseFloat(document.getElementById('risk-slider').value);
-
-  if (!balance || balance <= 0) {
-    balInput.focus();
-    balInput.style.borderColor = '#ef5350';
-    setTimeout(() => balInput.style.borderColor = '', 1500);
-    return;
-  }
-  balInput.style.borderColor = '';
-
-  const btn = document.getElementById('calc-btn');
-  btn.disabled = true;
-  btn.textContent = 'Calculating…';
-
-  document.getElementById('calc-results').innerHTML =
-    `<div class="calc-placeholder"><div class="calc-spinner"></div>Running analysis…</div>`;
-
-  try {
-    const res  = await fetch('/api/calculate', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({balance, risk_pct: riskPct}),
-    });
-    const d = await res.json();
-    if (d.error) throw new Error(d.error);
+async function runCalculator(){
+  const balInput=document.getElementById('calc-balance');
+  const balance=parseFloat(balInput.value);
+  const riskPct=parseFloat(document.getElementById('risk-slider').value);
+  if(!balance||balance<=0){balInput.focus();balInput.style.borderColor='#ef4444';setTimeout(()=>balInput.style.borderColor='',1500);return;}
+  balInput.style.borderColor='';
+  const btn=document.getElementById('calc-btn');
+  btn.disabled=true;btn.textContent='Calculating…';
+  document.getElementById('calc-results').innerHTML='<div class="calc-placeholder"><div class="calc-spinner"></div>Running analysis…</div>';
+  try{
+    const res=await fetch('/api/calculate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({balance,risk_pct:riskPct})});
+    const d=await res.json();
+    if(d.error)throw new Error(d.error);
     renderCalcResults(d);
-  } catch(e) {
-    document.getElementById('calc-results').innerHTML =
-      `<div class="calc-placeholder" style="color:var(--red)">⚠ ${e.message}</div>`;
+  }catch(e){
+    document.getElementById('calc-results').innerHTML=`<div class="calc-placeholder" style="color:var(--red)">⚠ ${e.message}</div>`;
   }
-
-  btn.disabled = false;
-  btn.textContent = 'Calculate Trade Plan';
+  btn.disabled=false;btn.textContent='Calculate Trade Plan';
 }
 
-function renderCalcResults(d) {
-  const biasColor = d.bias==='LONG'?'#26a69a':d.bias==='SHORT'?'#ef5350':'#f5c518';
-  const warnClass = d.risk_pct > 5 ? 'danger' : d.risk_pct > 3 ? '' : 'ok';
-
-  const tpRows = [
-    {label:'🟢 TP1', price:d.tp1, profit:d.tp1_profit, roi:d.tp1_roi, bal:d.bal_tp1},
-    {label:'🟢 TP2', price:d.tp2, profit:d.tp2_profit, roi:d.tp2_roi, bal:d.bal_tp2},
-    {label:'🟢 TP3', price:d.tp3, profit:d.tp3_profit, roi:d.tp3_roi, bal:d.bal_tp3},
-    {label:'🔴 SL',  price:d.stop_loss, profit:-d.risk_dollar, roi:-d.risk_pct, bal:d.bal_sl},
+function renderCalcResults(d){
+  const warnClass=d.risk_pct>5?'danger':d.risk_pct>3?'':'ok';
+  const tpRows=[
+    {label:'🟢 TP1',price:d.tp1,profit:d.tp1_profit,roi:d.tp1_roi,bal:d.bal_tp1},
+    {label:'🟢 TP2',price:d.tp2,profit:d.tp2_profit,roi:d.tp2_roi,bal:d.bal_tp2},
+    {label:'🟢 TP3',price:d.tp3,profit:d.tp3_profit,roi:d.tp3_roi,bal:d.bal_tp3},
+    {label:'🔴 SL', price:d.stop_loss,profit:-d.risk_dollar,roi:-d.risk_pct,bal:d.bal_sl},
   ];
-
-  document.getElementById('calc-results').innerHTML = `
-    <!-- Action card -->
-    <div class="action-card ${d.bias}" style="margin:12px;">
+  document.getElementById('calc-results').innerHTML=`
+    <div class="action-card ${d.bias}" style="margin:14px;">
       <div class="action-text ${d.bias}">${d.action}</div>
       <div style="font-size:11px;color:var(--muted);margin-top:4px;">${d.forecast} forecast · ${d.bias} bias</div>
     </div>
-
-    <!-- Core metrics grid -->
     <div class="calc-grid">
-      <div class="calc-card">
-        <div class="calc-card-label">Lot Size</div>
-        <div class="calc-card-value" style="color:#fff">${d.lot_size} ETH</div>
-      </div>
-      <div class="calc-card">
-        <div class="calc-card-label">Position Value</div>
-        <div class="calc-card-value" style="color:var(--blue)">$${fmt(d.position_value)}</div>
-      </div>
-      <div class="calc-card">
-        <div class="calc-card-label">Max Risk ($)</div>
-        <div class="calc-card-value" style="color:#ef5350">-$${fmt(d.risk_dollar)}</div>
-      </div>
-      <div class="calc-card">
-        <div class="calc-card-label">Capital Used</div>
-        <div class="calc-card-value" style="color:var(--muted)">${d.position_pct}%</div>
-      </div>
-      <div class="calc-card">
-        <div class="calc-card-label">Entry Price</div>
-        <div class="calc-card-value" style="color:#fcd34d">$${fmt(d.entry)}</div>
-      </div>
-      <div class="calc-card">
-        <div class="calc-card-label">Stop Loss</div>
-        <div class="calc-card-value" style="color:#ef5350">$${fmt(d.stop_loss)}</div>
-      </div>
+      <div class="calc-card"><div class="calc-card-label">Lot Size</div><div class="calc-card-value" style="color:#fff">${d.lot_size} ETH</div></div>
+      <div class="calc-card"><div class="calc-card-label">Position Value</div><div class="calc-card-value" style="color:var(--blue)">$${fmt(d.position_value)}</div></div>
+      <div class="calc-card"><div class="calc-card-label">Max Risk</div><div class="calc-card-value" style="color:var(--red)">-$${fmt(d.risk_dollar)}</div></div>
+      <div class="calc-card"><div class="calc-card-label">Capital Used</div><div class="calc-card-value" style="color:var(--muted)">${d.position_pct}%</div></div>
+      <div class="calc-card"><div class="calc-card-label">Entry</div><div class="calc-card-value" style="color:#fcd34d">$${fmt(d.entry)}</div></div>
+      <div class="calc-card"><div class="calc-card-label">Stop Loss</div><div class="calc-card-value" style="color:var(--red)">$${fmt(d.stop_loss)}</div></div>
     </div>
-
-    <!-- TP / SL outcomes table -->
-    <div style="padding:0 12px;margin-bottom:12px;">
-      <div class="sb-title">Profit & Loss at Each Level</div>
+    <div style="padding:0 14px 12px;">
+      <div class="sb-title">P&L at Each Level</div>
       <table class="tp-table">
         <thead><tr><th>Level</th><th>Price</th><th>P&L</th><th>ROI</th><th>Balance</th></tr></thead>
-        <tbody>
-          ${tpRows.map(r => {
-            const pos = r.profit >= 0;
-            const c = pos ? '#26a69a' : '#ef5350';
-            const sign = pos ? '+' : '';
-            return `<tr>
-              <td style="font-weight:700;color:${c}">${r.label}</td>
-              <td>$${fmt(r.price)}</td>
-              <td style="color:${c};font-weight:700">${sign}$${fmt(Math.abs(r.profit))}</td>
-              <td style="color:${c}">${sign}${r.roi}%</td>
-              <td style="color:${c}">$${fmt(r.bal)}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
+        <tbody>${tpRows.map(r=>{
+          const pos=r.profit>=0,c=pos?'#10b981':'#ef4444',sign=pos?'+':'';
+          return `<tr><td style="font-weight:700;color:${c}">${r.label}</td><td>$${fmt(r.price)}</td><td style="color:${c};font-weight:700">${sign}$${fmt(Math.abs(r.profit))}</td><td style="color:${c}">${sign}${r.roi}%</td><td style="color:${c}">$${fmt(r.bal)}</td></tr>`;
+        }).join('')}</tbody>
       </table>
     </div>
-
-    <!-- Risk warning -->
     <div class="risk-warn ${warnClass}">${d.risk_warning}</div>
-
-    <!-- Drawdown stat -->
-    <div class="drawdown-row">
-      <span style="color:var(--muted)">Consecutive losses to -50% drawdown</span>
-      <span style="font-weight:700;color:var(--text)">${d.max_losses_before_50pct_drawdown} trades</span>
-    </div>
-
-    <!-- How to execute -->
-    <div style="padding:12px;border-top:1px solid var(--border);">
+    <div class="drawdown-row"><span style="color:var(--muted)">Losses to -50% drawdown</span><span style="font-weight:700">${d.max_losses_before_50pct_drawdown} trades</span></div>
+    <div class="how-to">
       <div class="sb-title">How to Execute</div>
-      <div style="font-size:12px;line-height:1.8;color:var(--muted);">
-        <div>1️⃣ <strong style="color:var(--text)">Buy ${d.lot_size} ETH</strong> at market (~$${fmt(d.entry)})</div>
-        <div>2️⃣ <strong style="color:#ef5350">Set stop loss</strong> at $${fmt(d.stop_loss)}</div>
-        <div>3️⃣ <strong style="color:#26a69a">Take profit 1</strong> at $${fmt(d.tp1)} → +$${fmt(d.tp1_profit)}</div>
-        <div>4️⃣ <strong style="color:#26a69a">Take profit 2</strong> at $${fmt(d.tp2)} → +$${fmt(d.tp2_profit)}</div>
-        <div>5️⃣ <strong style="color:#26a69a">Take profit 3</strong> at $${fmt(d.tp3)} → +$${fmt(d.tp3_profit)}</div>
-        <div style="margin-top:8px;font-size:11px;">💡 Consider taking 50% off at TP1 and letting the rest run to TP2/TP3.</div>
-      </div>
+      <div class="how-to-item"><div class="how-to-num">1</div><div>Buy <strong>${d.lot_size} ETH</strong> at market (~$${fmt(d.entry)})</div></div>
+      <div class="how-to-item"><div class="how-to-num">2</div><div>Set <strong style="color:var(--red)">stop loss</strong> at $${fmt(d.stop_loss)}</div></div>
+      <div class="how-to-item"><div class="how-to-num">3</div><div><strong style="color:var(--green)">Take profit 1</strong> at $${fmt(d.tp1)} → +$${fmt(d.tp1_profit)}</div></div>
+      <div class="how-to-item"><div class="how-to-num">4</div><div><strong style="color:var(--green)">Take profit 2</strong> at $${fmt(d.tp2)} → +$${fmt(d.tp2_profit)}</div></div>
+      <div class="how-to-item"><div class="how-to-num">5</div><div><strong style="color:var(--green)">Take profit 3</strong> at $${fmt(d.tp3)} → +$${fmt(d.tp3_profit)}</div></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--muted);">💡 Consider taking 50% off at TP1, letting the rest run to TP2/TP3.</div>
     </div>
-
-    <div style="padding:12px;font-size:10px;color:var(--muted);line-height:1.5;">
-      Not financial advice. Always manage your own risk.
-    </div>
-  `;
+    <div class="disclaimer">Not financial advice. Always manage your own risk.</div>`;
 }
 
-// Also update AI chat suggestions to include calculator queries
-// ── Calculator ─────────────────────────────────────────────────────────────────
+// ── Chat ──────────────────────────────────────────────────────────────────────
 let chatHistory=[],chatBusy=false;
 function scrollChatToBottom(){const e=document.getElementById('chat-messages');e.scrollTop=e.scrollHeight;}
 function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,80)+'px';}
@@ -982,7 +1159,7 @@ function appendMsg(role,content){
 function showTyping(){
   const msgs=document.getElementById('chat-messages');
   const div=document.createElement('div');div.className='msg ai';div.id='typing-indicator';
-  div.innerHTML=`<div class="msg-avatar">🤖</div><div class="msg-bubble" style="padding:10px 14px;"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+  div.innerHTML=`<div class="msg-avatar">🤖</div><div class="msg-bubble" style="padding:10px 13px;"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
   msgs.appendChild(div);scrollChatToBottom();
 }
 function removeTyping(){const e=document.getElementById('typing-indicator');if(e)e.remove();}
@@ -1022,14 +1199,17 @@ async function loadData(){
       drawPredLines(d.prediction);
       togglePredLines(document.getElementById('content-predict').classList.contains('active'));
     }
-    if(d.signal) renderSignalBanner(d.signal);
-    if(d.chart_signals) drawChartSignals(d.chart_signals);
+    if(d.signal)       renderSignalBanner(d.signal);
+    if(d.chart_signals)drawChartSignals(d.chart_signals);
     startCountdown();
     document.getElementById('overlay').classList.add('hidden');
   }catch(e){
     document.getElementById('overlay').innerHTML=
-      `<div style="color:var(--red);text-align:center">⚠ ${e.message}<br><br>
-       <button onclick="loadData()" style="padding:6px 18px;background:#2962ff;color:#fff;border:none;border-radius:4px;cursor:pointer">Retry</button></div>`;
+      `<div style="text-align:center">
+        <div style="font-size:20px;margin-bottom:12px;">⚠</div>
+        <div style="color:var(--red);margin-bottom:16px;">${e.message}</div>
+        <button onclick="loadData()" style="padding:10px 24px;background:var(--blue);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:14px">Retry</button>
+      </div>`;
   }
 }
 
