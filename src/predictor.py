@@ -1,13 +1,12 @@
 """
-Prediction engine: forecast trend direction, entry zones, exit targets, and stop loss.
+Prediction engine with sensible R:R ratios.
 
-Logic:
-- Stop loss: 1.5× ATR below entry (tight, practical)
-- TP1: 1× ATR above entry  (conservative, ~1:0.7 R:R minimum)
-- TP2: 2× ATR above entry  (moderate)
-- TP3: nearest resistance or 3× ATR (aggressive)
-- R:R expressed as reward:risk (e.g. 1:2 means risk $1 to make $2)
-- Entry zone: current price ± 0.5× ATR (realistic immediate entry)
+Key principle: Risk small, target bigger.
+- Stop loss  = 0.5× ATR below entry  (tight, ~2-3% on daily ETH)
+- TP1        = 1.5× ATR above entry  (R:R ~3:1)
+- TP2        = 2.5× ATR above entry  (R:R ~5:1)
+- TP3        = 4.0× ATR above entry  (R:R ~8:1)
+- Entry zone = current price ± 0.2× ATR (almost market price)
 """
 
 from dataclasses import dataclass, field
@@ -20,31 +19,25 @@ import numpy as np
 class PriceLevel:
     price: float
     label: str
-    strength: str  # WEAK / MODERATE / STRONG
+    strength: str
 
 
 @dataclass
 class Prediction:
-    forecast: str            # BULLISH / BEARISH / NEUTRAL
+    forecast: str
     forecast_horizon: str
     forecast_confidence: float
-
     current_price: float
-    entry_low:  float
+    entry_low: float
     entry_high: float
     entry_note: str
-    bias: str                # LONG / SHORT / WAIT
-
+    bias: str
     tp1: float; tp2: float; tp3: float
     tp1_pct: float; tp2_pct: float; tp3_pct: float
-
     stop_loss: float
     stop_pct: float
-
-    # R:R = reward / risk (reward-to-risk ratio, e.g. 2.1 means 1:2.1)
     rr1: float; rr2: float; rr3: float
-
-    supports:    List[PriceLevel] = field(default_factory=list)
+    supports: List[PriceLevel] = field(default_factory=list)
     resistances: List[PriceLevel] = field(default_factory=list)
     summary: str = ""
 
@@ -82,116 +75,99 @@ def predict(df: pd.DataFrame) -> Prediction:
     row   = df.iloc[-1]
     price = float(row["close"])
 
-    # ── ATR (use 2% of price as fallback) ────────────────────────────────────
+    # ATR — use 2% of price as fallback
     atr_raw = float(row["atr"])
     atr = atr_raw if (not np.isnan(atr_raw) and atr_raw > 0) else price * 0.02
 
-    # ── Trend forecast score ─────────────────────────────────────────────────
+    # ── Trend forecast ────────────────────────────────────────────────────────
     scores = []
     scores.append(1 if _ema_slope(df["ema_9"],  3) > 0.2  else (-1 if _ema_slope(df["ema_9"],  3) < -0.2  else 0))
     scores.append(1 if _ema_slope(df["ema_21"], 3) > 0.1  else (-1 if _ema_slope(df["ema_21"], 3) < -0.1  else 0))
-
     if len(df) >= 3:
-        h_now  = float(df["macd_hist"].iloc[-1])
-        h_prev = float(df["macd_hist"].iloc[-2])
+        h_now, h_prev = float(df["macd_hist"].iloc[-1]), float(df["macd_hist"].iloc[-2])
         scores.append(1 if h_now > h_prev else (-1 if h_now < h_prev else 0))
-
     scores.append(1 if float(row["macd"]) > 0 else -1)
-
     if len(df) >= 3:
-        r_now  = float(df["rsi"].iloc[-1])
-        r_prev = float(df["rsi"].iloc[-2])
+        r_now, r_prev = float(df["rsi"].iloc[-1]), float(df["rsi"].iloc[-2])
         if r_now > r_prev and r_now < 70:   scores.append(1)
         elif r_now < r_prev and r_now > 30: scores.append(-1)
         else:                               scores.append(0)
-
     scores.append(1 if price > float(row["ema_50"]) else -1)
     scores.append(int(np.clip(float(row["ema_align"]) / 3, -1, 1)))
 
     total = sum(scores)
     forecast_confidence = round(abs(total) / len(scores) * 100, 1)
     forecast = "BULLISH" if total >= 3 else "BEARISH" if total <= -3 else "NEUTRAL"
-    forecast_horizon = "Next 1–3 days"
 
-    # ── Entry zone: tight band around current price ───────────────────────────
-    # For a LONG: entry is current price down to 0.5× ATR below (buy the dip)
-    # For a SHORT: entry is current price up to 0.5× ATR above (sell the rip)
-    if forecast == "BULLISH":
-        entry_low  = round(price - atr * 0.5, 2)
-        entry_high = round(price, 2)
-        bias = "LONG"
-        entry_note = f"Enter long near current price. Ideal dip entry: ${entry_low:,.2f}"
-    elif forecast == "BEARISH":
-        entry_low  = round(price, 2)
-        entry_high = round(price + atr * 0.5, 2)
-        bias = "SHORT"
-        entry_note = f"Enter short near current price. Ideal rip entry: ${entry_high:,.2f}"
-    else:
-        entry_low  = round(price - atr * 0.3, 2)
-        entry_high = round(price + atr * 0.3, 2)
-        bias = "WAIT"
-        entry_note = "No clear directional edge. Wait for confirmation."
-
-    entry_mid = (entry_low + entry_high) / 2
-
-    # ── Stop loss: 1.5× ATR from entry mid (tight and practical) ─────────────
-    if bias == "LONG":
-        stop_loss = round(entry_mid - atr * 1.5, 2)
-    elif bias == "SHORT":
-        stop_loss = round(entry_mid + atr * 1.5, 2)
-    else:
-        stop_loss = round(entry_mid - atr * 1.5, 2)
-
-    risk      = abs(entry_mid - stop_loss)          # dollar risk per unit
-    stop_pct  = round((stop_loss - entry_mid) / entry_mid * 100, 2)
-
-    # ── Take-profit targets: ATR multiples from entry ─────────────────────────
-    # Also look at nearest resistance/support for realistic targets
+    # ── Support / resistance data ─────────────────────────────────────────────
+    s_highs = _swing_highs(df["close"], window=2)
+    s_lows  = _swing_lows(df["close"],  window=2)
     bb_upper = float(row["bb_upper"])
     bb_lower = float(row["bb_lower"])
-    s_highs  = _swing_highs(df["close"], window=2)
-    s_lows   = _swing_lows(df["close"],  window=2)
 
-    if bias == "LONG":
-        # TP1: 1× ATR up, TP2: 2× ATR up, TP3: nearest resistance or 3× ATR
-        tp1_base = round(entry_mid + atr * 1.0, 2)
-        tp2_base = round(entry_mid + atr * 2.0, 2)
-        tp3_base = round(entry_mid + atr * 3.0, 2)
-
-        # Nudge TP3 toward nearest real resistance above entry
-        res_above = [h for h in s_highs if h > entry_mid + atr]
-        if res_above:
-            tp3_base = round(min(res_above[0], tp3_base), 2)
-        if bb_upper > tp2_base:
-            tp3_base = round(max(tp3_base, bb_upper), 2)
-
-        tp1, tp2, tp3 = tp1_base, tp2_base, tp3_base
-
-    elif bias == "SHORT":
-        tp1 = round(entry_mid - atr * 1.0, 2)
-        tp2 = round(entry_mid - atr * 2.0, 2)
-        tp3 = round(entry_mid - atr * 3.0, 2)
-        sup_below = [l for l in s_lows if l < entry_mid - atr]
-        if sup_below:
-            tp3 = round(max(sup_below[-1], tp3), 2)
-
+    # ── Entry zone: tight around market price ─────────────────────────────────
+    if forecast == "BULLISH":
+        entry_low  = round(price - atr * 0.2, 2)
+        entry_high = round(price, 2)
+        bias = "LONG"
+        entry_note = f"Enter long at market ~${price:,.2f}. Acceptable dip to ${entry_low:,.2f}"
+    elif forecast == "BEARISH":
+        entry_low  = round(price, 2)
+        entry_high = round(price + atr * 0.2, 2)
+        bias = "SHORT"
+        entry_note = f"Enter short at market ~${price:,.2f}. Acceptable rip to ${entry_high:,.2f}"
     else:
-        tp1 = round(entry_mid + atr * 1.0, 2)
-        tp2 = round(entry_mid + atr * 2.0, 2)
-        tp3 = round(entry_mid + atr * 3.0, 2)
+        entry_low  = round(price - atr * 0.15, 2)
+        entry_high = round(price + atr * 0.15, 2)
+        bias = "WAIT"
+        entry_note = "No clear edge. Wait for confirmation before entering."
 
-    # ── % from entry mid ──────────────────────────────────────────────────────
+    # Actual entry price = where you click Buy/Sell right now
+    entry = entry_high if bias == "LONG" else entry_low if bias == "SHORT" else price
+
+    # ── Stop loss: 0.5× ATR from entry ───────────────────────────────────────
+    if bias == "LONG":
+        stop_loss = round(entry - atr * 0.5, 2)
+    elif bias == "SHORT":
+        stop_loss = round(entry + atr * 0.5, 2)
+    else:
+        stop_loss = round(entry - atr * 0.5, 2)
+
+    risk     = abs(entry - stop_loss)
+    stop_pct = round((stop_loss - entry) / entry * 100, 2)
+
+    # ── Take-profit targets: 1.5×, 2.5×, 4× ATR ─────────────────────────────
+    if bias == "LONG":
+        tp1 = round(entry + atr * 1.5, 2)
+        tp2 = round(entry + atr * 2.5, 2)
+        tp3 = round(entry + atr * 4.0, 2)
+        # Snap TP3 to nearest real resistance if it's close
+        res_above = [h for h in s_highs if h > entry + atr * 2]
+        if res_above:
+            tp3 = round(max(tp3, min(res_above[0], entry + atr * 6)), 2)
+    elif bias == "SHORT":
+        tp1 = round(entry - atr * 1.5, 2)
+        tp2 = round(entry - atr * 2.5, 2)
+        tp3 = round(entry - atr * 4.0, 2)
+        sup_below = [l for l in s_lows if l < entry - atr * 2]
+        if sup_below:
+            tp3 = round(min(tp3, max(sup_below[-1], entry - atr * 6)), 2)
+    else:
+        tp1 = round(entry + atr * 1.5, 2)
+        tp2 = round(entry + atr * 2.5, 2)
+        tp3 = round(entry + atr * 4.0, 2)
+
+    # ── % change and R:R from entry ───────────────────────────────────────────
     def pct(target):
-        return round((target - entry_mid) / entry_mid * 100, 2)
+        return round((target - entry) / entry * 100, 2)
 
     tp1_pct = pct(tp1)
     tp2_pct = pct(tp2)
     tp3_pct = pct(tp3)
 
-    # ── R:R = reward / risk (higher = better) ────────────────────────────────
     def rr(tp):
-        reward = abs(tp - entry_mid)
-        return round(reward / risk, 2) if risk > 0 else 0.0
+        reward = abs(tp - entry)
+        return round(reward / risk, 1) if risk > 0 else 0.0
 
     rr1, rr2, rr3 = rr(tp1), rr(tp2), rr(tp3)
 
@@ -201,11 +177,11 @@ def predict(df: pd.DataFrame) -> Prediction:
     ema_200 = float(row["ema_200"])
 
     support_candidates = []
-    for val, label in [(ema_21, "EMA 21"), (ema_50, "EMA 50"), (ema_200, "EMA 200")]:
+    for val, label in [(ema_21,"EMA 21"),(ema_50,"EMA 50"),(ema_200,"EMA 200")]:
         if val < price:
-            support_candidates.append(PriceLevel(round(val, 2), label, "STRONG"))
+            support_candidates.append(PriceLevel(round(val,2), label, "STRONG"))
     if bb_lower < price:
-        support_candidates.append(PriceLevel(round(bb_lower, 2), "BB Lower", "MODERATE"))
+        support_candidates.append(PriceLevel(round(bb_lower,2), "BB Lower", "MODERATE"))
     for sl in s_lows[-3:]:
         if sl < price * 0.99:
             support_candidates.append(PriceLevel(sl, "Swing Low", "MODERATE"))
@@ -213,40 +189,34 @@ def predict(df: pd.DataFrame) -> Prediction:
 
     resistance_candidates = []
     if bb_upper > price:
-        resistance_candidates.append(PriceLevel(round(bb_upper, 2), "BB Upper", "MODERATE"))
+        resistance_candidates.append(PriceLevel(round(bb_upper,2), "BB Upper", "MODERATE"))
     for sh in s_highs[:3]:
         if sh > price * 1.005:
             resistance_candidates.append(PriceLevel(sh, "Swing High", "MODERATE"))
-    resistance_candidates.append(PriceLevel(round(entry_mid + 3 * atr, 2), "3× ATR Target", "WEAK"))
+    resistance_candidates.append(PriceLevel(round(entry + 4*atr,2), "4× ATR Target", "WEAK"))
     resistances = sorted(resistance_candidates, key=lambda x: x.price)[:4]
 
     # ── Summary ───────────────────────────────────────────────────────────────
-    direction = {"BULLISH": "upward", "BEARISH": "downward", "NEUTRAL": "sideways"}[forecast]
+    direction = {"BULLISH":"upward","BEARISH":"downward","NEUTRAL":"sideways"}[forecast]
     summary = (
-        f"ETH is forecasted to move {direction} with {forecast_confidence:.0f}% confidence. "
-        f"{'Enter long' if bias == 'LONG' else 'Enter short' if bias == 'SHORT' else 'Wait'} "
-        f"between ${entry_low:,.2f}–${entry_high:,.2f}. "
-        f"TP1 ${tp1:,.2f} ({tp1_pct:+.1f}%, R:R 1:{rr1}), "
-        f"TP2 ${tp2:,.2f} ({tp2_pct:+.1f}%, R:R 1:{rr2}), "
-        f"TP3 ${tp3:,.2f} ({tp3_pct:+.1f}%, R:R 1:{rr3}). "
-        f"Stop loss ${stop_loss:,.2f} ({stop_pct:+.1f}%)."
+        f"ETH forecast: {direction} ({forecast_confidence:.0f}% confidence). "
+        f"Entry: ~${entry:,.2f}. "
+        f"Stop loss: ${stop_loss:,.2f} ({stop_pct:+.1f}%, risk ${abs(entry-stop_loss):,.0f}/ETH). "
+        f"TP1: ${tp1:,.2f} ({tp1_pct:+.1f}%, R:R 1:{rr1}) | "
+        f"TP2: ${tp2:,.2f} ({tp2_pct:+.1f}%, R:R 1:{rr2}) | "
+        f"TP3: ${tp3:,.2f} ({tp3_pct:+.1f}%, R:R 1:{rr3})."
     )
 
     return Prediction(
-        forecast=forecast,
-        forecast_horizon=forecast_horizon,
+        forecast=forecast, forecast_horizon="Next 1–3 days",
         forecast_confidence=forecast_confidence,
-        current_price=round(price, 2),
-        entry_low=entry_low,
-        entry_high=entry_high,
-        entry_note=entry_note,
+        current_price=round(price,2),
+        entry_low=entry_low, entry_high=entry_high, entry_note=entry_note,
         bias=bias,
         tp1=tp1, tp2=tp2, tp3=tp3,
         tp1_pct=tp1_pct, tp2_pct=tp2_pct, tp3_pct=tp3_pct,
-        stop_loss=stop_loss,
-        stop_pct=stop_pct,
+        stop_loss=stop_loss, stop_pct=stop_pct,
         rr1=rr1, rr2=rr2, rr3=rr3,
-        supports=supports,
-        resistances=resistances,
+        supports=supports, resistances=resistances,
         summary=summary,
     )
