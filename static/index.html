@@ -6,150 +6,156 @@
   <title>ETH/USD — ETH Trend AI</title>
   <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
   <style>
-    /* ── Reset & base ───────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg:        #131722;
-      --bg2:       #1e222d;
-      --bg3:       #2a2e39;
-      --border:    #2a2e39;
-      --border2:   #363a45;
-      --text:      #d1d4dc;
-      --muted:     #787b86;
-      --blue:      #2962ff;
-      --blue-dim:  #1e3a8a;
-      --green:     #26a69a;
-      --green2:    #089981;
-      --red:       #ef5350;
-      --red2:      #f23645;
-      --yellow:    #f5c518;
-      --purple:    #9c27b0;
-      --up:        #26a69a;
-      --down:      #ef5350;
+      --bg:      #131722; --bg2: #1e222d; --bg3: #2a2e39;
+      --border:  #2a2e39; --border2: #363a45;
+      --text:    #d1d4dc; --muted: #787b86;
+      --blue:    #2962ff; --green: #26a69a;
+      --red:     #ef5350; --yellow: #f5c518;
+      --up:      #26a69a; --down: #ef5350;
+      --ai:      #7c3aed;
     }
     html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, 'Trebuchet MS', sans-serif; font-size: 13px; overflow: hidden; }
 
-    /* ── Layout ─────────────────────────────────────────────────── */
-    .app { display: grid; grid-template-rows: 48px 1fr; grid-template-columns: 1fr 280px; height: 100vh; }
-    .topbar  { grid-column: 1 / -1; background: var(--bg2); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 16px; z-index: 10; }
-    .main    { display: flex; flex-direction: column; overflow: hidden; }
-    .sidebar { background: var(--bg2); border-left: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+    /* ── Layout: topbar / charts / right-panel ── */
+    .app {
+      display: grid;
+      grid-template-rows: 48px 1fr;
+      grid-template-columns: 1fr 300px;
+      height: 100vh;
+    }
+    .topbar  { grid-column: 1 / -1; background: var(--bg2); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 16px; z-index: 10; flex-wrap: wrap; }
+    .main    { display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+    /* Right panel: tabs + content */
+    .right-panel { background: var(--bg2); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
 
-    /* ── Topbar ─────────────────────────────────────────────────── */
-    .logo { font-size: 15px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px; }
-    .logo svg { color: var(--blue); }
-    .sym { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: 0.03em; }
+    /* ── Topbar ── */
+    .logo { font-size: 15px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .sym { font-size: 15px; font-weight: 700; color: #fff; }
     .price-display { display: flex; align-items: baseline; gap: 8px; }
     .cur-price { font-size: 18px; font-weight: 700; color: #fff; }
     .chg { font-size: 12px; font-weight: 600; padding: 2px 6px; border-radius: 3px; }
     .chg.up   { background: rgba(38,166,154,.15); color: var(--up); }
     .chg.down { background: rgba(239,83,80,.15);  color: var(--down); }
     .chg.flat { background: rgba(120,123,134,.15); color: var(--muted); }
-    .ohlc-bar { display: flex; gap: 14px; margin-left: 8px; }
+    .ohlc-bar { display: flex; gap: 14px; }
     .ohlc-item { display: flex; gap: 4px; font-size: 11px; }
     .ohlc-item span:first-child { color: var(--muted); }
-    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
     .live-pill { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
     .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: blink 2s ease-in-out infinite; }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
-    .btn-refresh { background: var(--bg3); border: 1px solid var(--border2); color: var(--text); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; transition: background .15s; }
-    .btn-refresh:hover { background: var(--border2); }
+    .btn { background: var(--bg3); border: 1px solid var(--border2); color: var(--text); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; transition: background .15s; }
+    .btn:hover { background: var(--border2); }
 
-    /* ── Toolbar (interval + indicators toggle) ─────────────────── */
-    .toolbar { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 12px; height: 34px; display: flex; align-items: center; gap: 2px; }
-    .tb-btn { background: none; border: none; color: var(--muted); padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all .15s; }
-    .tb-btn:hover, .tb-btn.active { background: var(--bg3); color: var(--text); }
-    .tb-sep { width: 1px; height: 16px; background: var(--border2); margin: 0 6px; }
-    .ind-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 2px 7px; border-radius: 3px; border: 1px solid; }
+    /* ── Toolbar ── */
+    .toolbar { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 12px; height: 34px; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .ind-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 2px 7px; border-radius: 3px; border: 1px solid; white-space: nowrap; }
     .ind-ema9   { color: #2196f3; border-color: #2196f320; background: #2196f310; }
     .ind-ema21  { color: #ff9800; border-color: #ff980020; background: #ff980010; }
     .ind-ema50  { color: #9c27b0; border-color: #9c27b020; background: #9c27b010; }
     .ind-ema200 { color: #f44336; border-color: #f4433620; background: #f4433610; }
     .ind-bb     { color: #26a69a; border-color: #26a69a20; background: #26a69a10; }
+    .tb-sep { width: 1px; height: 16px; background: var(--border2); }
 
-    /* ── Chart area ─────────────────────────────────────────────── */
-    .chart-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-    #chart-main  { flex: 6; min-height: 0; }
-    #chart-rsi   { flex: 2; min-height: 0; border-top: 1px solid var(--border); }
-    #chart-macd  { flex: 2; min-height: 0; border-top: 1px solid var(--border); }
+    /* ── Chart area ── */
+    .chart-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+    .chart-wrap { position: relative; display: flex; flex-direction: column; min-height: 0; }
 
-    /* ── Sidebar ────────────────────────────────────────────────── */
+    /* ── Right panel tabs ── */
+    .rp-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .rp-tab { flex: 1; padding: 10px 0; text-align: center; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; user-select: none; }
+    .rp-tab:hover { color: var(--text); }
+    .rp-tab.active { color: #fff; border-bottom-color: var(--blue); }
+    .rp-tab.active.ai-tab { border-bottom-color: var(--ai); color: #a78bfa; }
+    .rp-content { flex: 1; overflow-y: auto; display: none; flex-direction: column; }
+    .rp-content.active { display: flex; }
+
+    /* ── Sidebar (analysis tab) ── */
     .sb-section { padding: 12px; border-bottom: 1px solid var(--border); }
     .sb-title { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; }
-
-    /* Trend card */
     .trend-card { background: var(--bg3); border-radius: 6px; padding: 12px; text-align: center; margin-bottom: 8px; }
     .trend-label { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
-    .trend-value { font-size: 16px; font-weight: 700; letter-spacing: .02em; }
-    .STRONG_UPTREND   { color: #26a69a; }
-    .UPTREND          { color: #4caf50; }
-    .NEUTRAL          { color: #f5c518; }
-    .DOWNTREND        { color: #ff7043; }
+    .trend-value { font-size: 16px; font-weight: 700; }
+    .STRONG_UPTREND   { color: #26a69a; } .UPTREND { color: #4caf50; }
+    .NEUTRAL          { color: #f5c518; } .DOWNTREND { color: #ff7043; }
     .STRONG_DOWNTREND { color: #ef5350; }
-
-    /* Metric row */
     .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
     .metric { background: var(--bg3); border-radius: 5px; padding: 8px 10px; }
     .metric-label { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
     .metric-value { font-size: 14px; font-weight: 700; }
-
-    /* Score bar */
     .score-wrap { margin-bottom: 8px; }
     .score-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-bottom: 4px; }
-    .score-track { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; position: relative; }
-    .score-fill  { height: 100%; border-radius: 3px; transition: width .5s ease; }
-
-    /* Signal rows */
-    .signal-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+    .score-track { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+    .score-fill { height: 100%; border-radius: 3px; transition: width .5s ease; }
+    .signal-row { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); }
     .signal-row:last-child { border-bottom: none; }
-    .sig-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .sig-dot.bull { background: var(--green); }
-    .sig-dot.bear { background: var(--red); }
-    .sig-dot.neut { background: var(--muted); }
-    .sig-name  { font-size: 11px; font-weight: 600; color: var(--text); flex: 1; }
+    .sig-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+    .sig-dot.bull { background: var(--green); } .sig-dot.bear { background: var(--red); } .sig-dot.neut { background: var(--muted); }
+    .sig-name { font-size: 11px; font-weight: 600; color: var(--text); }
     .sig-score { font-size: 11px; font-weight: 700; min-width: 32px; text-align: right; }
-    .sig-score.pos { color: var(--green); }
-    .sig-score.neg { color: var(--red); }
-    .sig-score.neu { color: var(--muted); }
+    .sig-score.pos { color: var(--green); } .sig-score.neg { color: var(--red); } .sig-score.neu { color: var(--muted); }
     .sig-interp { font-size: 10px; color: var(--muted); margin-top: 1px; line-height: 1.3; }
-
-    /* Reversal warnings */
     .warn-item { display: flex; gap: 6px; align-items: flex-start; padding: 5px 0; font-size: 11px; color: #ff7043; border-bottom: 1px solid var(--border); }
     .warn-item:last-child { border-bottom: none; }
     .warn-none { font-size: 11px; color: var(--green); }
+    .rec-box { background: var(--bg3); border-left: 3px solid var(--blue); border-radius: 0 5px 5px 0; padding: 10px 12px; font-size: 12px; line-height: 1.5; }
+    .risk-LOW { color: var(--green); } .risk-MEDIUM { color: var(--yellow); } .risk-HIGH { color: #ff7043; } .risk-CRITICAL { color: var(--red); }
+    .rp-content::-webkit-scrollbar { width: 4px; }
+    .rp-content::-webkit-scrollbar-track { background: var(--bg2); }
+    .rp-content::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
 
-    /* Recommendation */
-    .rec-box { background: var(--bg3); border-left: 3px solid var(--blue); border-radius: 0 5px 5px 0; padding: 10px 12px; font-size: 12px; line-height: 1.5; color: var(--text); }
+    /* ── AI Chat panel ── */
+    .chat-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+    .chat-messages::-webkit-scrollbar { width: 4px; }
+    .chat-messages::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
 
-    /* Risk badge */
-    .risk-LOW      { color: var(--green); }
-    .risk-MEDIUM   { color: var(--yellow); }
-    .risk-HIGH     { color: #ff7043; }
-    .risk-CRITICAL { color: var(--red); }
+    .msg { display: flex; gap: 8px; animation: fadeUp .2s ease; max-width: 100%; }
+    @keyframes fadeUp { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: none; } }
+    .msg.user { flex-direction: row-reverse; }
+    .msg-avatar { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; margin-top: 2px; }
+    .msg.ai   .msg-avatar { background: var(--ai); color: #fff; }
+    .msg.user .msg-avatar { background: var(--blue); color: #fff; }
+    .msg-bubble { max-width: calc(100% - 38px); padding: 9px 12px; border-radius: 12px; font-size: 12px; line-height: 1.55; word-break: break-word; }
+    .msg.ai   .msg-bubble { background: var(--bg3); color: var(--text); border-bottom-left-radius: 3px; }
+    .msg.user .msg-bubble { background: #1e3a5f; color: #e0eeff; border-bottom-right-radius: 3px; }
+    .msg-bubble p { margin-bottom: 6px; } .msg-bubble p:last-child { margin-bottom: 0; }
+    .msg-bubble strong { color: #fff; }
 
-    /* Loading overlay */
+    .typing-indicator { display: flex; gap: 4px; padding: 10px 12px; }
+    .typing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: typingBounce 1.2s ease-in-out infinite; }
+    .typing-dot:nth-child(2) { animation-delay: .2s; }
+    .typing-dot:nth-child(3) { animation-delay: .4s; }
+    @keyframes typingBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+
+    .chat-suggestions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px; }
+    .suggestion { background: var(--bg3); border: 1px solid var(--border2); color: var(--muted); font-size: 11px; padding: 4px 10px; border-radius: 12px; cursor: pointer; transition: all .15s; white-space: nowrap; }
+    .suggestion:hover { background: #3d2b6b; border-color: #7c3aed50; color: #c4b5fd; }
+
+    .chat-input-row { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); flex-shrink: 0; }
+    .chat-input { flex: 1; background: var(--bg3); border: 1px solid var(--border2); color: var(--text); padding: 8px 12px; border-radius: 20px; font-size: 12px; outline: none; resize: none; font-family: inherit; line-height: 1.4; max-height: 80px; overflow-y: auto; transition: border-color .15s; }
+    .chat-input:focus { border-color: var(--ai); }
+    .chat-input::placeholder { color: var(--muted); }
+    .send-btn { width: 34px; height: 34px; border-radius: 50%; background: var(--ai); border: none; color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .15s; align-self: flex-end; }
+    .send-btn:hover { background: #6d28d9; }
+    .send-btn:disabled { background: var(--bg3); cursor: not-allowed; }
+    .send-btn svg { width: 15px; height: 15px; }
+
+    /* ── Loading overlay ── */
     #overlay { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 100; }
     .spinner { width: 32px; height: 32px; border: 3px solid var(--bg3); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     #overlay.hidden { display: none; }
-    #err-msg { color: var(--red); font-size: 13px; text-align: center; max-width: 300px; }
-
-    /* Crosshair legend */
-    .chart-legend { position: absolute; top: 6px; left: 12px; z-index: 5; font-size: 11px; color: var(--text); pointer-events: none; display: flex; gap: 12px; flex-wrap: wrap; }
-    .chart-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
-
-    /* Scrollbar */
-    .sidebar::-webkit-scrollbar { width: 4px; }
-    .sidebar::-webkit-scrollbar-track { background: var(--bg2); }
-    .sidebar::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
 
     @media (max-width: 768px) {
-      .app { grid-template-columns: 1fr; grid-template-rows: 48px 1fr auto; }
-      .sidebar { grid-row: 3; max-height: 50vh; border-left: none; border-top: 1px solid var(--border); }
+      .app { grid-template-columns: 1fr; grid-template-rows: 48px 1fr 45vh; }
+      .right-panel { border-left: none; border-top: 1px solid var(--border); }
       .ohlc-bar { display: none; }
       html, body { overflow: auto; }
       .app { height: auto; }
-      .chart-area { height: 60vh; }
+      .chart-area { height: 55vh; }
     }
   </style>
 </head>
@@ -158,12 +164,11 @@
 <div id="overlay">
   <div class="spinner"></div>
   <div style="color:var(--muted);font-size:12px;">Fetching ETH market data…</div>
-  <div id="err-msg" style="display:none"></div>
 </div>
 
 <div class="app">
 
-  <!-- ── Top bar ── -->
+  <!-- ── Topbar ── -->
   <header class="topbar">
     <div class="logo">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
@@ -184,14 +189,14 @@
     </div>
     <div class="topbar-right">
       <div class="live-pill"><span class="dot"></span><span id="last-up">—</span></div>
-      <button class="btn-refresh" onclick="loadData()">↻ Refresh</button>
+      <button class="btn" onclick="loadData()">↻ Refresh</button>
     </div>
   </header>
 
   <!-- ── Chart panel ── -->
   <div class="main">
     <div class="toolbar">
-      <span style="font-size:11px;color:var(--muted);margin-right:4px;">Indicators:</span>
+      <span style="font-size:11px;color:var(--muted);">Indicators:</span>
       <span class="ind-badge ind-ema9">EMA 9</span>
       <span class="ind-badge ind-ema21">EMA 21</span>
       <span class="ind-badge ind-ema50">EMA 50</span>
@@ -200,7 +205,6 @@
       <div class="tb-sep"></div>
       <span style="font-size:11px;color:var(--muted);">RSI · MACD</span>
     </div>
-
     <div class="chart-area">
       <div class="chart-wrap" style="flex:6;min-height:0;">
         <div id="chart-main" style="width:100%;height:100%;"></div>
@@ -216,79 +220,222 @@
     </div>
   </div>
 
-  <!-- ── Sidebar ── -->
-  <aside class="sidebar">
+  <!-- ── Right panel ── -->
+  <aside class="right-panel">
+    <!-- Tabs -->
+    <div class="rp-tabs">
+      <div class="rp-tab active" id="tab-analysis" onclick="switchTab('analysis')">Analysis</div>
+      <div class="rp-tab ai-tab" id="tab-chat" onclick="switchTab('chat')">🤖 AI Chat</div>
+    </div>
 
-    <!-- Trend summary -->
-    <div class="sb-section">
-      <div class="sb-title">Trend Analysis</div>
-      <div class="trend-card">
-        <div class="trend-label">Current Trend</div>
-        <div class="trend-value" id="trend-val">—</div>
+    <!-- Analysis content -->
+    <div class="rp-content active" id="content-analysis">
+      <div class="sb-section">
+        <div class="sb-title">Trend Analysis</div>
+        <div class="trend-card">
+          <div class="trend-label">Current Trend</div>
+          <div class="trend-value" id="trend-val">—</div>
+        </div>
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric-label">Reversal Risk</div>
+            <div class="metric-value" id="risk-val">—</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Confidence</div>
+            <div class="metric-value" style="color:var(--blue)" id="conf-val">—</div>
+          </div>
+        </div>
+        <div class="score-wrap">
+          <div class="score-label"><span>Bear</span><span id="score-num">Score: —</span><span>Bull</span></div>
+          <div class="score-track"><div class="score-fill" id="score-fill" style="width:50%;background:var(--muted)"></div></div>
+        </div>
       </div>
-      <div class="metrics">
-        <div class="metric">
-          <div class="metric-label">Reversal Risk</div>
-          <div class="metric-value" id="risk-val">—</div>
-        </div>
-        <div class="metric">
-          <div class="metric-label">Confidence</div>
-          <div class="metric-value" style="color:var(--blue)" id="conf-val">—</div>
-        </div>
+      <div class="sb-section">
+        <div class="sb-title">Signal Breakdown</div>
+        <div id="signals-list"></div>
       </div>
-      <div class="score-wrap">
-        <div class="score-label">
-          <span>Bear</span>
-          <span id="score-num">Score: —</span>
-          <span>Bull</span>
-        </div>
-        <div class="score-track">
-          <div class="score-fill" id="score-fill" style="width:50%;margin-left:0;background:var(--muted)"></div>
-        </div>
+      <div class="sb-section">
+        <div class="sb-title">⚠ Reversal Warnings</div>
+        <div id="warnings-list"></div>
+      </div>
+      <div class="sb-section">
+        <div class="sb-title">AI Recommendation</div>
+        <div class="rec-box" id="rec-text">—</div>
+      </div>
+      <div style="padding:12px;font-size:10px;color:var(--muted);line-height:1.5;margin-top:auto;">
+        For informational purposes only. Not financial advice.
       </div>
     </div>
 
-    <!-- Signals -->
-    <div class="sb-section">
-      <div class="sb-title">Signal Breakdown</div>
-      <div id="signals-list"></div>
-    </div>
+    <!-- AI Chat content -->
+    <div class="rp-content" id="content-chat">
+      <div class="chat-panel">
+        <div class="chat-messages" id="chat-messages">
+          <!-- Welcome message -->
+          <div class="msg ai">
+            <div class="msg-avatar">🤖</div>
+            <div class="msg-bubble">
+              <strong>Hey! I'm your ETH analyst.</strong><br>
+              I have access to the live market data, trend analysis, and all indicator readings on this chart. Ask me anything.
+            </div>
+          </div>
+        </div>
 
-    <!-- Reversal warnings -->
-    <div class="sb-section">
-      <div class="sb-title">⚠ Reversal Warnings</div>
-      <div id="warnings-list"></div>
-    </div>
+        <!-- Suggestion chips -->
+        <div class="chat-suggestions" id="chat-suggestions">
+          <span class="suggestion" onclick="sendSuggestion(this)">Is now a good time to buy?</span>
+          <span class="suggestion" onclick="sendSuggestion(this)">What is the RSI telling me?</span>
+          <span class="suggestion" onclick="sendSuggestion(this)">Explain the reversal warnings</span>
+          <span class="suggestion" onclick="sendSuggestion(this)">Where is support & resistance?</span>
+          <span class="suggestion" onclick="sendSuggestion(this)">What could cause a trend change?</span>
+        </div>
 
-    <!-- Recommendation -->
-    <div class="sb-section">
-      <div class="sb-title">AI Recommendation</div>
-      <div class="rec-box" id="rec-text">—</div>
-    </div>
-
-    <div style="padding:12px;font-size:10px;color:var(--muted);line-height:1.5;margin-top:auto;">
-      For informational purposes only. Not financial advice.
+        <div class="chat-input-row">
+          <textarea class="chat-input" id="chat-input" placeholder="Ask about ETH market…" rows="1"
+            onkeydown="handleChatKey(event)" oninput="autoResize(this)"></textarea>
+          <button class="send-btn" id="send-btn" onclick="sendMessage()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
   </aside>
 
 </div><!-- .app -->
 
 <script>
-// ── Chart options factory ────────────────────────────────────────────────────
-const CHART_OPTS = (height) => ({
+// ── Tab switching ────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.rp-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.rp-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('content-' + tab).classList.add('active');
+  if (tab === 'chat') {
+    scrollChatToBottom();
+    document.getElementById('chat-input').focus();
+  }
+}
+
+// ── Chat state ───────────────────────────────────────────────────────────────
+let chatHistory = [];
+let chatBusy = false;
+
+function scrollChatToBottom() {
+  const el = document.getElementById('chat-messages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 80) + 'px';
+}
+
+function handleChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function sendSuggestion(el) {
+  const text = el.textContent;
+  document.getElementById('chat-suggestions').style.display = 'none';
+  document.getElementById('chat-input').value = text;
+  sendMessage();
+}
+
+function appendMsg(role, content) {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  const avatar = role === 'ai' ? '🤖' : '👤';
+  // Simple markdown: **bold**, newlines
+  const html = content
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\n/g,'<br>');
+  div.innerHTML = `<div class="msg-avatar">${avatar}</div><div class="msg-bubble">${html}</div>`;
+  msgs.appendChild(div);
+  scrollChatToBottom();
+  return div;
+}
+
+function showTyping() {
+  const msgs = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg ai';
+  div.id = 'typing-indicator';
+  div.innerHTML = `<div class="msg-avatar">🤖</div>
+    <div class="msg-bubble" style="padding:10px 14px;">
+      <div class="typing-indicator">
+        <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+      </div>
+    </div>`;
+  msgs.appendChild(div);
+  scrollChatToBottom();
+}
+
+function removeTyping() {
+  const el = document.getElementById('typing-indicator');
+  if (el) el.remove();
+}
+
+async function sendMessage() {
+  if (chatBusy) return;
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+
+  chatBusy = true;
+  document.getElementById('send-btn').disabled = true;
+  input.value = '';
+  input.style.height = 'auto';
+  document.getElementById('chat-suggestions').style.display = 'none';
+
+  appendMsg('user', msg);
+  chatHistory.push({ role: 'user', content: msg });
+  showTyping();
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, history: chatHistory.slice(0, -1) }),
+    });
+    const data = await res.json();
+    removeTyping();
+
+    if (data.error) {
+      appendMsg('ai', '⚠ Error: ' + data.error);
+    } else {
+      appendMsg('ai', data.reply);
+      chatHistory.push({ role: 'assistant', content: data.reply });
+      // Keep history from growing unbounded
+      if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
+    }
+  } catch (e) {
+    removeTyping();
+    appendMsg('ai', '⚠ Network error. Please try again.');
+  }
+
+  chatBusy = false;
+  document.getElementById('send-btn').disabled = false;
+  input.focus();
+}
+
+// ── Chart setup ──────────────────────────────────────────────────────────────
+const CHART_OPTS = () => ({
   layout: { background: { color: '#131722' }, textColor: '#787b86' },
   grid: { vertLines: { color: '#1e222d' }, horzLines: { color: '#1e222d' } },
   crosshair: { mode: 1 },
   rightPriceScale: { borderColor: '#2a2e39' },
   timeScale: { borderColor: '#2a2e39', timeVisible: true, secondsVisible: false },
-  handleScroll: true,
-  handleScale: true,
+  handleScroll: true, handleScale: true,
 });
 
 let chartMain, chartRsi, chartMacd;
 let candleSeries, ema9S, ema21S, ema50S, ema200S, bbUpS, bbMidS, bbLowS;
-let rsiSeries, rsiOb, rsiOs;
-let macdSeries, macdSigS, macdHistS;
+let rsiSeries, rsiOb, rsiOs, macdSeries, macdSigS, macdHistS;
 let chartsInited = false;
 
 function initCharts() {
@@ -300,19 +447,13 @@ function initCharts() {
   chartRsi  = LightweightCharts.createChart(rsiEl,  { ...CHART_OPTS(), width: rsiEl.clientWidth,  height: rsiEl.clientHeight });
   chartMacd = LightweightCharts.createChart(macdEl, { ...CHART_OPTS(), width: macdEl.clientWidth, height: macdEl.clientHeight });
 
-  // Sync crosshair & scroll across all charts
   [chartMain, chartRsi, chartMacd].forEach((src, si) => {
-    src.subscribeCrosshairMove(p => {
-      if (!p.time) return;
-      [chartMain, chartRsi, chartMacd].forEach((dst, di) => { if (di !== si) dst.setCrosshairPosition(p.seriesData?.values().next().value?.value ?? 0, p.time, dst.series?.[0]); });
-    });
     src.timeScale().subscribeVisibleLogicalRangeChange(range => {
       if (!range) return;
       [chartMain, chartRsi, chartMacd].forEach((dst, di) => { if (di !== si) dst.timeScale().setVisibleLogicalRange(range); });
     });
   });
 
-  // ── Main chart series ──
   candleSeries = chartMain.addCandlestickSeries({ upColor:'#26a69a', downColor:'#ef5350', borderUpColor:'#26a69a', borderDownColor:'#ef5350', wickUpColor:'#26a69a', wickDownColor:'#ef5350' });
   ema9S   = chartMain.addLineSeries({ color:'#2196f3', lineWidth:1, priceLineVisible:false, lastValueVisible:false });
   ema21S  = chartMain.addLineSeries({ color:'#ff9800', lineWidth:1, priceLineVisible:false, lastValueVisible:false });
@@ -322,150 +463,122 @@ function initCharts() {
   bbMidS  = chartMain.addLineSeries({ color:'rgba(38,166,154,0.3)', lineWidth:1, lineStyle:2, priceLineVisible:false, lastValueVisible:false });
   bbLowS  = chartMain.addLineSeries({ color:'rgba(38,166,154,0.5)', lineWidth:1, priceLineVisible:false, lastValueVisible:false });
 
-  // ── RSI chart ──
-  chartRsi.priceScale('right').applyOptions({ autoScale: false, minimum: 0, maximum: 100 });
   rsiSeries = chartRsi.addLineSeries({ color:'#ba68c8', lineWidth:1.5, priceLineVisible:false, lastValueVisible:true });
   rsiOb = chartRsi.addLineSeries({ color:'rgba(239,83,80,0.4)', lineWidth:1, lineStyle:2, priceLineVisible:false, lastValueVisible:false });
   rsiOs = chartRsi.addLineSeries({ color:'rgba(38,166,154,0.4)', lineWidth:1, lineStyle:2, priceLineVisible:false, lastValueVisible:false });
 
-  // ── MACD chart ──
-  macdSeries  = chartMacd.addLineSeries({ color:'#2196f3', lineWidth:1.5, priceLineVisible:false, lastValueVisible:true });
-  macdSigS    = chartMacd.addLineSeries({ color:'#ff9800', lineWidth:1, priceLineVisible:false, lastValueVisible:true });
-  macdHistS   = chartMacd.addHistogramSeries({ priceLineVisible:false, lastValueVisible:false });
+  macdSeries = chartMacd.addLineSeries({ color:'#2196f3', lineWidth:1.5, priceLineVisible:false, lastValueVisible:true });
+  macdSigS   = chartMacd.addLineSeries({ color:'#ff9800', lineWidth:1, priceLineVisible:false, lastValueVisible:true });
+  macdHistS  = chartMacd.addHistogramSeries({ priceLineVisible:false, lastValueVisible:false });
 
   chartsInited = true;
 }
 
 function setData(candles) {
-  const mk = c => ({ time: c.time });
+  const valid = f => f !== null && f !== undefined;
   candleSeries.setData(candles.map(c => ({ time:c.time, open:c.open, high:c.high, low:c.low, close:c.close })));
-  ema9S.setData(candles.map(c => ({ time:c.time, value:c.ema9 })));
-  ema21S.setData(candles.map(c => ({ time:c.time, value:c.ema21 })));
-  ema50S.setData(candles.map(c => ({ time:c.time, value:c.ema50 })));
-  ema200S.setData(candles.map(c => ({ time:c.time, value:c.ema200 })));
-  bbUpS.setData(candles.map(c => ({ time:c.time, value:c.bb_upper })));
-  bbMidS.setData(candles.map(c => ({ time:c.time, value:c.bb_mid })));
-  bbLowS.setData(candles.map(c => ({ time:c.time, value:c.bb_lower })));
-
-  rsiSeries.setData(candles.map(c => ({ time:c.time, value:c.rsi })));
-  const firstTime = candles[0].time, lastTime = candles[candles.length-1].time;
-  rsiOb.setData([{time:firstTime,value:70},{time:lastTime,value:70}]);
-  rsiOs.setData([{time:firstTime,value:30},{time:lastTime,value:30}]);
-
-  macdSeries.setData(candles.map(c => ({ time:c.time, value:c.macd })));
-  macdSigS.setData(candles.map(c => ({ time:c.time, value:c.macd_sig })));
-  macdHistS.setData(candles.map(c => ({ time:c.time, value:c.macd_hist, color: c.macd_hist >= 0 ? 'rgba(38,166,154,0.7)' : 'rgba(239,83,80,0.7)' })));
+  ema9S.setData(candles.filter(c=>valid(c.ema9)).map(c=>({time:c.time,value:c.ema9})));
+  ema21S.setData(candles.filter(c=>valid(c.ema21)).map(c=>({time:c.time,value:c.ema21})));
+  ema50S.setData(candles.filter(c=>valid(c.ema50)).map(c=>({time:c.time,value:c.ema50})));
+  ema200S.setData(candles.filter(c=>valid(c.ema200)).map(c=>({time:c.time,value:c.ema200})));
+  bbUpS.setData(candles.filter(c=>valid(c.bb_upper)).map(c=>({time:c.time,value:c.bb_upper})));
+  bbMidS.setData(candles.filter(c=>valid(c.bb_mid)).map(c=>({time:c.time,value:c.bb_mid})));
+  bbLowS.setData(candles.filter(c=>valid(c.bb_lower)).map(c=>({time:c.time,value:c.bb_lower})));
+  rsiSeries.setData(candles.filter(c=>valid(c.rsi)).map(c=>({time:c.time,value:c.rsi})));
+  const t0 = candles[0].time, t1 = candles[candles.length-1].time;
+  rsiOb.setData([{time:t0,value:70},{time:t1,value:70}]);
+  rsiOs.setData([{time:t0,value:30},{time:t1,value:30}]);
+  macdSeries.setData(candles.filter(c=>valid(c.macd)).map(c=>({time:c.time,value:c.macd})));
+  macdSigS.setData(candles.filter(c=>valid(c.macd_sig)).map(c=>({time:c.time,value:c.macd_sig})));
+  macdHistS.setData(candles.filter(c=>valid(c.macd_hist)).map(c=>({time:c.time,value:c.macd_hist,color:c.macd_hist>=0?'rgba(38,166,154,0.7)':'rgba(239,83,80,0.7)'})));
 
   chartMain.timeScale().fitContent();
   chartRsi.timeScale().fitContent();
   chartMacd.timeScale().fitContent();
 
-  // Update OHLC bar with latest candle
-  const last = candles[candles.length - 1];
-  document.getElementById('ohlc-o').textContent = '$' + last.open.toLocaleString();
-  document.getElementById('ohlc-h').textContent = '$' + last.high.toLocaleString();
-  document.getElementById('ohlc-l').textContent = '$' + last.low.toLocaleString();
-  document.getElementById('ohlc-c').textContent = '$' + last.close.toLocaleString();
+  const last = candles[candles.length-1];
+  document.getElementById('ohlc-o').textContent = '$'+last.open?.toLocaleString();
+  document.getElementById('ohlc-h').textContent = '$'+last.high?.toLocaleString();
+  document.getElementById('ohlc-l').textContent = '$'+last.low?.toLocaleString();
+  document.getElementById('ohlc-c').textContent = '$'+last.close?.toLocaleString();
 }
 
-// ── Sidebar renderers ────────────────────────────────────────────────────────
+// ── Sidebar render ───────────────────────────────────────────────────────────
 const TREND_EMOJI = { STRONG_UPTREND:'🚀', UPTREND:'📈', NEUTRAL:'➡️', DOWNTREND:'📉', STRONG_DOWNTREND:'🔻' };
 
 function renderSidebar(d) {
   const m = d.market;
-
-  // Price + badges
-  document.getElementById('cur-price').textContent = '$' + m.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  document.getElementById('cur-price').textContent = '$'+m.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   const b24 = document.getElementById('chg-24h');
-  b24.textContent = (m.change_24h>=0?'+':'') + m.change_24h.toFixed(2) + '%';
-  b24.className = 'chg ' + (m.change_24h>0?'up':m.change_24h<0?'down':'flat');
+  b24.textContent = (m.change_24h>=0?'+':'')+m.change_24h.toFixed(2)+'%';
+  b24.className = 'chg '+(m.change_24h>0?'up':m.change_24h<0?'down':'flat');
   const b7 = document.getElementById('chg-7d');
-  b7.textContent = '7d ' + (m.change_7d>=0?'+':'') + m.change_7d.toFixed(2) + '%';
-  b7.className = 'chg ' + (m.change_7d>0?'up':m.change_7d<0?'down':'flat');
+  b7.textContent = '7d '+(m.change_7d>=0?'+':'')+m.change_7d.toFixed(2)+'%';
+  b7.className = 'chg '+(m.change_7d>0?'up':m.change_7d<0?'down':'flat');
 
-  // Trend
   const tEl = document.getElementById('trend-val');
-  tEl.textContent = (TREND_EMOJI[d.trend]||'') + ' ' + d.trend.replace(/_/g,' ');
-  tEl.className = 'trend-value ' + d.trend;
+  tEl.textContent = (TREND_EMOJI[d.trend]||'')+' '+d.trend.replace(/_/g,' ');
+  tEl.className = 'trend-value '+d.trend;
 
-  // Risk
   const rEl = document.getElementById('risk-val');
   rEl.textContent = d.reversal_risk;
-  rEl.className = 'metric-value risk-' + d.reversal_risk;
+  rEl.className = 'metric-value risk-'+d.reversal_risk;
+  document.getElementById('conf-val').textContent = d.confidence+'%';
 
-  document.getElementById('conf-val').textContent = d.confidence + '%';
-
-  // Score bar — map score from -10..+10 to 0..100%
-  const pct = Math.min(100, Math.max(0, (d.score + 10) / 20 * 100));
+  const pct = Math.min(100,Math.max(0,(d.score+10)/20*100));
   const fill = document.getElementById('score-fill');
-  fill.style.width = pct + '%';
-  fill.style.background = d.score > 0 ? '#26a69a' : d.score < 0 ? '#ef5350' : '#787b86';
-  document.getElementById('score-num').textContent = 'Score: ' + (d.score > 0 ? '+' : '') + d.score;
+  fill.style.width = pct+'%';
+  fill.style.background = d.score>0?'#26a69a':d.score<0?'#ef5350':'#787b86';
+  document.getElementById('score-num').textContent = 'Score: '+(d.score>0?'+':'')+d.score;
 
-  // Signals
-  const sl = document.getElementById('signals-list');
-  sl.innerHTML = d.signals.map(s => {
-    const cls = s.score > 0 ? 'bull' : s.score < 0 ? 'bear' : 'neut';
-    const scCls = s.score > 0 ? 'pos' : s.score < 0 ? 'neg' : 'neu';
+  document.getElementById('signals-list').innerHTML = d.signals.map(s => {
+    const cls = s.score>0?'bull':s.score<0?'bear':'neut';
+    const scCls = s.score>0?'pos':s.score<0?'neg':'neu';
     return `<div class="signal-row">
       <span class="sig-dot ${cls}"></span>
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <span class="sig-name">${s.name}</span>
-          <span class="sig-score ${scCls}">${s.score > 0 ? '+' : ''}${s.score}</span>
+          <span class="sig-score ${scCls}">${s.score>0?'+':''}${s.score}</span>
         </div>
         <div class="sig-interp">${s.interpretation}</div>
       </div>
     </div>`;
   }).join('');
 
-  // Warnings
   const wl = document.getElementById('warnings-list');
   wl.innerHTML = d.reversal_warnings.length
-    ? d.reversal_warnings.map(w => `<div class="warn-item"><span>⚠</span><span>${w}</span></div>`).join('')
+    ? d.reversal_warnings.map(w=>`<div class="warn-item"><span>⚠</span><span>${w}</span></div>`).join('')
     : '<div class="warn-none">✅ No reversal warnings</div>';
 
-  // Recommendation
   document.getElementById('rec-text').textContent = d.recommendation;
-
-  // Timestamp
   document.getElementById('last-up').textContent = new Date().toLocaleTimeString();
 }
 
 // ── Main load ────────────────────────────────────────────────────────────────
 async function loadData() {
-  const overlay = document.getElementById('overlay');
-  const errMsg  = document.getElementById('err-msg');
-  overlay.classList.remove('hidden');
-  errMsg.style.display = 'none';
-
   try {
     const res = await fetch('/api/analysis?days=90');
-    if (!res.ok) throw new Error('Server error ' + res.status);
+    if (!res.ok) throw new Error('Server error '+res.status);
     const d = await res.json();
     if (d.error) throw new Error(d.error);
-
     if (!chartsInited) initCharts();
     setData(d.candles);
     renderSidebar(d);
-    overlay.classList.add('hidden');
-  } catch (e) {
-    errMsg.textContent = '⚠ ' + e.message;
-    errMsg.style.display = 'block';
-    // hide spinner, show retry
-    document.querySelector('#overlay .spinner').style.display = 'none';
-    document.querySelector('#overlay div:nth-child(2)').innerHTML =
-      '<button onclick="loadData()" style="padding:6px 18px;background:#2962ff;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-top:8px;">Retry</button>';
+    document.getElementById('overlay').classList.add('hidden');
+  } catch(e) {
+    document.getElementById('overlay').innerHTML =
+      `<div style="color:var(--red);text-align:center">⚠ ${e.message}<br><br>
+       <button onclick="loadData()" style="padding:6px 18px;background:#2962ff;color:#fff;border:none;border-radius:4px;cursor:pointer">Retry</button></div>`;
   }
 }
 
-// ── Resize handler ───────────────────────────────────────────────────────────
 function resizeCharts() {
   if (!chartsInited) return;
-  const resize = (chart, el) => chart.resize(el.clientWidth, el.clientHeight);
-  resize(chartMain, document.getElementById('chart-main'));
-  resize(chartRsi,  document.getElementById('chart-rsi'));
-  resize(chartMacd, document.getElementById('chart-macd'));
+  const r = (chart, el) => chart.resize(el.clientWidth, el.clientHeight);
+  r(chartMain, document.getElementById('chart-main'));
+  r(chartRsi,  document.getElementById('chart-rsi'));
+  r(chartMacd, document.getElementById('chart-macd'));
 }
 window.addEventListener('resize', resizeCharts);
 

@@ -1,14 +1,22 @@
 """
 ETH Trend AI — FastAPI web server.
-Serves a TradingView-style dashboard at / and JSON API at /api/analysis
+Endpoints:
+  GET  /              → TradingView-style dashboard
+  GET  /health        → health check
+  GET  /api/analysis  → JSON market analysis
+  POST /api/chat      → AI chat (Groq LLaMA)
 """
 
 import os
+import math
+import json
 import traceback
 import logging
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+import numpy as np
+import requests as req_lib
 import uvicorn
 
 logging.basicConfig(level=logging.INFO)
@@ -18,58 +26,56 @@ from src.fetcher import fetch_ohlc, fetch_market_data
 from src.indicators import add_all_indicators
 from src.trend_detector import analyze
 
-app = FastAPI(title="ETH Trend AI", version="2.0.0")
+app = FastAPI(title="ETH Trend AI", version="3.0.0")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-import math
-import numpy as np
-from fastapi.responses import Response
-import json
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_MODEL   = "llama-3.3-70b-versatile"
 
 
-class SafeJSONResponse(Response):
-    """JSONResponse that handles numpy int64/float64 and NaN/Inf values."""
-    media_type = "application/json"
-
-    def render(self, content) -> bytes:
-        return json.dumps(content, cls=_SafeEncoder).encode("utf-8")
-
+# ── Safe JSON response ────────────────────────────────────────────────────────
 
 class _SafeEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, (np.integer,)):
+        if isinstance(obj, np.integer):
             return int(obj)
-        if isinstance(obj, (np.floating,)):
+        if isinstance(obj, np.floating):
             v = float(obj)
             return None if (math.isnan(v) or math.isinf(v)) else v
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         return super().default(obj)
 
-    def encode(self, obj):
-        # Also sanitize plain Python floats
-        if isinstance(obj, float):
-            return "null" if (math.isnan(obj) or math.isinf(obj)) else super().encode(obj)
-        return super().encode(obj)
+    def iterencode(self, obj, _one_shot=False):
+        # Patch plain Python floats inline
+        for chunk in super().iterencode(obj, _one_shot):
+            yield chunk
+
+
+class SafeJSONResponse(Response):
+    media_type = "application/json"
+    def render(self, content) -> bytes:
+        return json.dumps(content, cls=_SafeEncoder, allow_nan=False,
+                          default=lambda o: None).encode("utf-8")
 
 
 def _safe(v):
-    """Convert NaN/Inf floats and numpy scalars to safe Python types."""
-    if isinstance(v, (np.integer,)):
+    if isinstance(v, np.integer):
         return int(v)
-    if isinstance(v, (np.floating,)):
+    if isinstance(v, np.floating):
         v = float(v)
     if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
         return None
     return v
 
+
+# ── Analysis ──────────────────────────────────────────────────────────────────
 
 def run_analysis(days: int = 90) -> dict:
     logger.info(f"Fetching OHLC data for {days} days...")
@@ -126,6 +132,50 @@ def run_analysis(days: int = 90) -> dict:
     }
 
 
+def _build_system_prompt(analysis: dict) -> str:
+    m = analysis["market"]
+    sigs = "\n".join(
+        f"  - {s['name']}: score {s['score']:+.1f} — {s['interpretation']}"
+        for s in analysis["signals"]
+    )
+    warnings = "\n".join(f"  - {w}" for w in analysis["reversal_warnings"]) or "  None"
+
+    return f"""You are an expert crypto market analyst AI embedded in the ETH Trend AI platform.
+You have access to real-time Ethereum market data and technical analysis. Use it to answer user questions clearly and helpfully.
+
+CURRENT ETH MARKET DATA:
+- Price: ${m['price']:,.2f}
+- 24h Change: {m['change_24h']:+.2f}%
+- 7d Change: {m['change_7d']:+.2f}%
+- 24h High: ${m['high_24h']:,.2f}
+- 24h Low: ${m['low_24h']:,.2f}
+- Volume 24h: ${m['volume_24h']:,.0f}
+
+TREND ANALYSIS:
+- Trend: {analysis['trend'].replace('_', ' ')}
+- Reversal Risk: {analysis['reversal_risk']}
+- Confidence: {analysis['confidence']}%
+- Aggregate Score: {analysis['score']:+.2f} (scale: -10 bearish to +10 bullish)
+- AI Recommendation: {analysis['recommendation']}
+
+SIGNAL BREAKDOWN:
+{sigs}
+
+REVERSAL WARNINGS:
+{warnings}
+
+INSTRUCTIONS:
+- Always ground your answers in the data above.
+- Be direct and specific — reference actual indicator values.
+- If asked about buying/selling, give a nuanced technical view but always remind the user this is not financial advice.
+- Keep responses concise (3-5 sentences max unless a detailed explanation is asked for).
+- Never make up data not present above.
+- Today's date: 2026-09-27.
+"""
+
+
+# ── Routes ────────────────────────────────────────────────────────────────────
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
@@ -139,7 +189,58 @@ async def api_analysis(days: int = 90):
     except Exception as e:
         tb = traceback.format_exc()
         logger.error(f"Analysis failed:\n{tb}")
-        return SafeJSONResponse(status_code=500, content={"error": str(e), "detail": tb})
+        return SafeJSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.post("/api/chat")
+async def api_chat(request: Request):
+    if not GROQ_API_KEY:
+        return SafeJSONResponse(status_code=503, content={"error": "GROQ_API_KEY not configured."})
+
+    body = await request.json()
+    user_message: str = body.get("message", "").strip()
+    history: list   = body.get("history", [])   # [{role, content}, ...]
+
+    if not user_message:
+        return SafeJSONResponse(status_code=400, content={"error": "Empty message."})
+
+    # Get current analysis as context (uses cache — no extra API calls)
+    try:
+        analysis = run_analysis(days=90)
+        system_prompt = _build_system_prompt(analysis)
+    except Exception:
+        system_prompt = "You are an expert crypto analyst. Answer questions about Ethereum markets."
+
+    messages = [{"role": "system", "content": system_prompt}]
+    # Include recent history (last 10 turns to stay within context)
+    for msg in history[-10:]:
+        if msg.get("role") in ("user", "assistant") and msg.get("content"):
+            messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": user_message})
+
+    try:
+        resp = req_lib.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": GROQ_MODEL,
+                "messages": messages,
+                "max_tokens": 512,
+                "temperature": 0.4,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        reply = data["choices"][0]["message"]["content"]
+        return SafeJSONResponse(content={"reply": reply})
+    except Exception as e:
+        tb = traceback.format_exc()
+        logger.error(f"Groq API error:\n{tb}")
+        return SafeJSONResponse(status_code=500, content={"error": str(e)})
 
 
 @app.get("/", response_class=HTMLResponse)
