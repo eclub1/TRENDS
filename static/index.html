@@ -615,6 +615,8 @@
   <!-- ═══════════ CHARTS ═══════════ -->
   <div class="main">
     <div class="toolbar">
+      <span class="interval-badge" id="interval-badge">1D</span>
+      <div class="tbsep"></div>
       <span class="tblabel">Indicators</span>
       <div class="tbsep"></div>
       <span class="ind-pill ip-e9"><span class="ind-dot" style="background:#4e8ef7"></span>EMA 9</span>
@@ -842,18 +844,16 @@ let currentMode = 'swing';
 
 function setMode(mode) {
   currentMode = mode;
-  // Update buttons
-  document.getElementById('mbtn-swing').className    = 'mode-btn' + (mode === 'swing'    ? ' active' : '');
-  document.getElementById('mbtn-daytrade').className = 'mode-btn' + (mode === 'daytrade' ? ' daytrade-active' : '');
-  // Mode strip
+  const sw = document.getElementById('mbtn-swing');
+  const dt = document.getElementById('mbtn-daytrade');
   const strip = document.getElementById('mode-strip');
-  strip.classList.toggle('visible', mode === 'daytrade');
-  // Interval badge
   const badge = document.getElementById('interval-badge');
-  if (mode === 'daytrade') {
-    badge.textContent = '15m'; badge.className = 'interval-badge dt';
-  } else {
-    badge.textContent = '1D';  badge.className = 'interval-badge';
+  if (sw) sw.className = 'mode-btn' + (mode === 'swing' ? ' active' : '');
+  if (dt) dt.className = 'mode-btn' + (mode === 'daytrade' ? ' daytrade-active' : '');
+  if (strip) strip.classList.toggle('visible', mode === 'daytrade');
+  if (badge) {
+    badge.textContent = mode === 'daytrade' ? '15m' : '1D';
+    badge.className = 'interval-badge' + (mode === 'daytrade' ? ' dt' : '');
   }
   loadData();
 }
