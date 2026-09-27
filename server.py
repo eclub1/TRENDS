@@ -76,6 +76,11 @@ def run_analysis(days: int = 90) -> dict:
     }
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
 @app.get("/api/analysis")
 async def api_analysis(days: int = 90):
     try:
@@ -87,7 +92,10 @@ async def api_analysis(days: int = 90):
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard():
-    with open(os.path.join(os.path.dirname(__file__), "static", "index.html"), "r", encoding="utf-8") as f:
+    # Use path relative to CWD (works in Docker where CWD = /app)
+    base = os.path.dirname(os.path.abspath(__file__))
+    html_path = os.path.join(base, "static", "index.html")
+    with open(html_path, "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
 
 
