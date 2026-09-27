@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from src.fetcher      import fetch_ohlc, fetch_market_data
+from src.fetcher      import fetch_ohlc, fetch_market_data, fetch_binance_ohlc
 from src.indicators   import add_all_indicators
 from src.trend_detector import analyze
 from src.predictor    import predict
@@ -59,12 +59,22 @@ def _safe(v):
 
 
 # ── Analysis ──────────────────────────────────────────────────────────────────
-def run_analysis(days: int = 90) -> dict:
-    logger.info("Fetching OHLC + market data...")
-    ohlc_df = fetch_ohlc(days=days)
-    market  = fetch_market_data()
+def run_analysis(days: int = 90, mode: str = "swing") -> dict:
+    """
+    mode = 'swing'     → CoinGecko daily candles (90d), MTF: 30min/4h/daily
+    mode = 'daytrade'  → Binance 15min candles (200 bars ~2days), MTF: 15m/1h/4h
+    """
+    logger.info(f"Mode: {mode} | Fetching data...")
+    market = fetch_market_data()
 
-    logger.info("Computing indicators...")
+    if mode == "daytrade":
+        ohlc_df  = fetch_binance_ohlc("15m", 200)
+        interval_label = "15m"
+    else:
+        ohlc_df  = fetch_ohlc(days=days)
+        interval_label = "1d"
+
+    logger.info(f"Got {len(ohlc_df)} candles ({interval_label}). Computing indicators...")
     df_ind = add_all_indicators(ohlc_df)
 
     logger.info("Running trend analysis...")
@@ -86,7 +96,7 @@ def run_analysis(days: int = 90) -> dict:
 
     logger.info("Running multi-timeframe analysis...")
     try:
-        mtf = analyze_mtf()
+        mtf = analyze_mtf(mode=mode)
         mtf_data = {
             "confluence":       mtf.confluence,
             "confluence_score": mtf.confluence_score,
@@ -187,6 +197,8 @@ def run_analysis(days: int = 90) -> dict:
     logger.info(f"Done: {result.trend} | ML:{ml_data['direction']} {ml_data['probability']}% | MTF:{mtf_data['confluence']} | Patterns:{len(patterns_data)}")
 
     return {
+        "mode": mode,
+        "interval": interval_label,
         "market": market, "candles": candles,
         "trend": result.trend, "reversal_risk": result.reversal_risk,
         "confidence": round(result.confidence, 1), "score": round(result.total_score, 2),
@@ -281,9 +293,9 @@ async def health():
 
 
 @app.get("/api/analysis")
-async def api_analysis(days: int = 90):
+async def api_analysis(days: int = 90, mode: str = "swing"):
     try:
-        return SafeJSONResponse(content=run_analysis(days))
+        return SafeJSONResponse(content=run_analysis(days, mode))
     except Exception as e:
         logger.error(traceback.format_exc())
         return SafeJSONResponse(status_code=500, content={"error": str(e)})
@@ -344,7 +356,8 @@ async def api_calculate(request: Request):
         return SafeJSONResponse(status_code=400, content={"error": "Risk % must be between 0.1 and 100."})
 
     try:
-        analysis = run_analysis(days=90)
+        calc_mode = body.get("mode", "swing")
+        analysis = run_analysis(days=90, mode=calc_mode)
         pred = analysis.get("prediction", {})
         market = analysis.get("market", {})
 
