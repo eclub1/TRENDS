@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ETH/USD — ETH Trend AI</title>
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    /* ── Reset & base ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #131722;
+      --bg2:       #1e222d;
+      --bg3:       #2a2e39;
+      --border:    #2a2e39;
+      --border2:   #363a45;
+      --text:      #d1d4dc;
+      --muted:     #787b86;
+      --blue:      #2962ff;
+      --blue-dim:  #1e3a8a;
+      --green:     #26a69a;
+      --green2:    #089981;
+      --red:       #ef5350;
+      --red2:      #f23645;
+      --yellow:    #f5c518;
+      --purple:    #9c27b0;
+      --up:        #26a69a;
+      --down:      #ef5350;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, 'Trebuchet MS', sans-serif; font-size: 13px; overflow: hidden; }
+
+    /* ── Layout ─────────────────────────────────────────────────── */
+    .app { display: grid; grid-template-rows: 48px 1fr; grid-template-columns: 1fr 280px; height: 100vh; }
+    .topbar  { grid-column: 1 / -1; background: var(--bg2); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 16px; z-index: 10; }
+    .main    { display: flex; flex-direction: column; overflow: hidden; }
+    .sidebar { background: var(--bg2); border-left: 1px solid var(--border); overflow-y: auto; display: flex; flex-direction: column; }
+
+    /* ── Topbar ─────────────────────────────────────────────────── */
+    .logo { font-size: 15px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px; }
+    .logo svg { color: var(--blue); }
+    .sym { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: 0.03em; }
+    .price-display { display: flex; align-items: baseline; gap: 8px; }
+    .cur-price { font-size: 18px; font-weight: 700; color: #fff; }
+    .chg { font-size: 12px; font-weight: 600; padding: 2px 6px; border-radius: 3px; }
+    .chg.up   { background: rgba(38,166,154,.15); color: var(--up); }
+    .chg.down { background: rgba(239,83,80,.15);  color: var(--down); }
+    .chg.flat { background: rgba(120,123,134,.15); color: var(--muted); }
+    .ohlc-bar { display: flex; gap: 14px; margin-left: 8px; }
+    .ohlc-item { display: flex; gap: 4px; font-size: 11px; }
+    .ohlc-item span:first-child { color: var(--muted); }
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .live-pill { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: blink 2s ease-in-out infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+    .btn-refresh { background: var(--bg3); border: 1px solid var(--border2); color: var(--text); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; transition: background .15s; }
+    .btn-refresh:hover { background: var(--border2); }
+
+    /* ── Toolbar (interval + indicators toggle) ─────────────────── */
+    .toolbar { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 12px; height: 34px; display: flex; align-items: center; gap: 2px; }
+    .tb-btn { background: none; border: none; color: var(--muted); padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all .15s; }
+    .tb-btn:hover, .tb-btn.active { background: var(--bg3); color: var(--text); }
+    .tb-sep { width: 1px; height: 16px; background: var(--border2); margin: 0 6px; }
+    .ind-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 2px 7px; border-radius: 3px; border: 1px solid; }
+    .ind-ema9   { color: #2196f3; border-color: #2196f320; background: #2196f310; }
+    .ind-ema21  { color: #ff9800; border-color: #ff980020; background: #ff980010; }
+    .ind-ema50  { color: #9c27b0; border-color: #9c27b020; background: #9c27b010; }
+    .ind-ema200 { color: #f44336; border-color: #f4433620; background: #f4433610; }
+    .ind-bb     { color: #26a69a; border-color: #26a69a20; background: #26a69a10; }
+
+    /* ── Chart area ─────────────────────────────────────────────── */
+    .chart-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    #chart-main  { flex: 6; min-height: 0; }
+    #chart-rsi   { flex: 2; min-height: 0; border-top: 1px solid var(--border); }
+    #chart-macd  { flex: 2; min-height: 0; border-top: 1px solid var(--border); }
+
+    /* ── Sidebar ────────────────────────────────────────────────── */
+    .sb-section { padding: 12px; border-bottom: 1px solid var(--border); }
+    .sb-title { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 10px; }
+
+    /* Trend card */
+    .trend-card { background: var(--bg3); border-radius: 6px; padding: 12px; text-align: center; margin-bottom: 8px; }
+    .trend-label { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+    .trend-value { font-size: 16px; font-weight: 700; letter-spacing: .02em; }
+    .STRONG_UPTREND   { color: #26a69a; }
+    .UPTREND          { color: #4caf50; }
+    .NEUTRAL          { color: #f5c518; }
+    .DOWNTREND        { color: #ff7043; }
+    .STRONG_DOWNTREND { color: #ef5350; }
+
+    /* Metric row */
+    .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+    .metric { background: var(--bg3); border-radius: 5px; padding: 8px 10px; }
+    .metric-label { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+    .metric-value { font-size: 14px; font-weight: 700; }
+
+    /* Score bar */
+    .score-wrap { margin-bottom: 8px; }
+    .score-label { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+    .score-track { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; position: relative; }
+    .score-fill  { height: 100%; border-radius: 3px; transition: width .5s ease; }
+
+    /* Signal rows */
+    .signal-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+    .signal-row:last-child { border-bottom: none; }
+    .sig-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .sig-dot.bull { background: var(--green); }
+    .sig-dot.bear { background: var(--red); }
+    .sig-dot.neut { background: var(--muted); }
+    .sig-name  { font-size: 11px; font-weight: 600; color: var(--text); flex: 1; }
+    .sig-score { font-size: 11px; font-weight: 700; min-width: 32px; text-align: right; }
+    .sig-score.pos { color: var(--green); }
+    .sig-score.neg { color: var(--red); }
+    .sig-score.neu { color: var(--muted); }
+    .sig-interp { font-size: 10px; color: var(--muted); margin-top: 1px; line-height: 1.3; }
+
+    /* Reversal warnings */
+    .warn-item { display: flex; gap: 6px; align-items: flex-start; padding: 5px 0; font-size: 11px; color: #ff7043; border-bottom: 1px solid var(--border); }
+    .warn-item:last-child { border-bottom: none; }
+    .warn-none { font-size: 11px; color: var(--green); }
+
+    /* Recommendation */
+    .rec-box { background: var(--bg3); border-left: 3px solid var(--blue); border-radius: 0 5px 5px 0; padding: 10px 12px; font-size: 12px; line-height: 1.5; color: var(--text); }
+
+    /* Risk badge */
+    .risk-LOW      { color: var(--green); }
+    .risk-MEDIUM   { color: var(--yellow); }
+    .risk-HIGH     { color: #ff7043; }
+    .risk-CRITICAL { color: var(--red); }
+
+    /* Loading overlay */
+    #overlay { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 100; }
+    .spinner { width: 32px; height: 32px; border: 3px solid var(--bg3); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #overlay.hidden { display: none; }
+    #err-msg { color: var(--red); font-size: 13px; text-align: center; max-width: 300px; }
+
+    /* Crosshair legend */
+    .chart-legend { position: absolute; top: 6px; left: 12px; z-index: 5; font-size: 11px; color: var(--text); pointer-events: none; display: flex; gap: 12px; flex-wrap: wrap; }
+    .chart-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+    /* Scrollbar */
+    .sidebar::-webkit-scrollbar { width: 4px; }
+    .sidebar::-webkit-scrollbar-track { background: var(--bg2); }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
+
+    @media (max-width: 768px) {
+      .app { grid-template-columns: 1fr; grid-template-rows: 48px 1fr auto; }
+      .sidebar { grid-row: 3; max-height: 50vh; border-left: none; border-top: 1px solid var(--border); }
+      .ohlc-bar { display: none; }
+      html, body { overflow: auto; }
+      .app { height: auto; }
+      .chart-area { height: 60vh; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="overlay">
+  <div class="spinner"></div>
+  <div style="color:var(--muted);font-size:12px;">Fetching ETH market data…</div>
+  <div id="err-msg" style="display:none"></div>
+</div>
+
+<div class="app">
+
+  <!-- ── Top bar ── -->
+  <header class="topbar">
+    <div class="logo">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+      ETH Trend AI
+    </div>
+    <div style="width:1px;height:20px;background:var(--border2)"></div>
+    <div class="sym">ETH/USD</div>
+    <div class="price-display">
+      <span class="cur-price" id="cur-price">—</span>
+      <span class="chg flat" id="chg-24h">—</span>
+      <span class="chg flat" id="chg-7d" style="font-size:11px">7d —</span>
+    </div>
+    <div class="ohlc-bar">
+      <div class="ohlc-item"><span>O</span><span id="ohlc-o">—</span></div>
+      <div class="ohlc-item"><span>H</span><span id="ohlc-h" style="color:var(--up)">—</span></div>
+      <div class="ohlc-item"><span>L</span><span id="ohlc-l" style="color:var(--down)">—</span></div>
+      <div class="ohlc-item"><span>C</span><span id="ohlc-c">—</span></div>
+    </div>
+    <div class="topbar-right">
+      <div class="live-pill"><span class="dot"></span><span id="last-up">—</span></div>
+      <button class="btn-refresh" onclick="loadData()">↻ Refresh</button>
+    </div>
+  </header>
+
+  <!-- ── Chart panel ── -->
+  <div class="main">
+    <div class="toolbar">
+      <span style="font-size:11px;color:var(--muted);margin-right:4px;">Indicators:</span>
+      <span class="ind-badge ind-ema9">EMA 9</span>
+      <span class="ind-badge ind-ema21">EMA 21</span>
+      <span class="ind-badge ind-ema50">EMA 50</span>
+      <span class="ind-badge ind-ema200">EMA 200</span>
+      <span class="ind-badge ind-bb">BB 20</span>
+      <div class="tb-sep"></div>
+      <span style="font-size:11px;color:var(--muted);">RSI · MACD</span>
+    </div>
+
+    <div class="chart-area">
+      <div class="chart-wrap" style="flex:6;min-height:0;">
+        <div id="chart-main" style="width:100%;height:100%;"></div>
+      </div>
+      <div class="chart-wrap" style="flex:2;min-height:0;border-top:1px solid var(--border);">
+        <div style="position:absolute;top:4px;left:10px;font-size:10px;color:var(--muted);z-index:5;">RSI (14)</div>
+        <div id="chart-rsi" style="width:100%;height:100%;"></div>
+      </div>
+      <div class="chart-wrap" style="flex:2;min-height:0;border-top:1px solid var(--border);">
+        <div style="position:absolute;top:4px;left:10px;font-size:10px;color:var(--muted);z-index:5;">MACD (12,26,9)</div>
+        <div id="chart-macd" style="width:100%;height:100%;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+
+    <!-- Trend summary -->
+    <div class="sb-section">
+      <div class="sb-title">Trend Analysis</div>
+      <div class="trend-card">
+        <div class="trend-label">Current Trend</div>
+        <div class="trend-value" id="trend-val">—</div>
+      </div>
+      <div class="metrics">
+        <div class="metric">
+          <div class="metric-label">Reversal Risk</div>
+          <div class="metric-value" id="risk-val">—</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Confidence</div>
+          <div class="metric-value" style="color:var(--blue)" id="conf-val">—</div>
+        </div>
+      </div>
+      <div class="score-wrap">
+        <div class="score-label">
+          <span>Bear</span>
+          <span id="score-num">Score: —</span>
+          <span>Bull</span>
+        </div>
+        <div class="score-track">
+          <div class="score-fill" id="score-fill" style="width:50%;margin-left:0;background:var(--muted)"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Signals -->
+    <div class="sb-section">
+      <div class="sb-title">Signal Breakdown</div>
+      <div id="signals-list"></div>
+    </div>
+
+    <!-- Reversal warnings -->
+    <div class="sb-section">
+      <div class="sb-title">⚠ Reversal Warnings</div>
+      <div id="warnings-list"></div>
+    </div>
+
+    <!-- Recommendation -->
+    <div class="sb-section">
+      <div class="sb-title">AI Recommendation</div>
+      <div class="rec-box" id="rec-text">—</div>
+    </div>
+
+    <div style="padding:12px;font-size:10px;color:var(--muted);line-height:1.5;margin-top:auto;">
+      For informational purposes only. Not financial advice.
+    </div>
+  </aside>
+
+</div><!-- .app -->
+
+<script>
+// ── Chart options factory ────────────────────────────────────────────────────
+const CHART_OPTS = (height) => ({
+  layout: { background: { color: '#131722' }, textColor: '#787b86' },
+  grid: { vertLines: { color: '#1e222d' }, horzLines: { color: '#1e222d' } },
+  crosshair: { mode: 1 },
+  rightPriceScale: { borderColor: '#2a2e39' },
+  timeScale: { borderColor: '#2a2e39', timeVisible: true, secondsVisible: false },
+  handleScroll: true,
+  handleScale: true,
+});
+
+let chartMain, chartRsi, chartMacd;
+let candleSeries, ema9S, ema21S, ema50S, ema200S, bbUpS, bbMidS, bbLowS;
+let rsiSeries, rsiOb, rsiOs;
+let macdSeries, macdSigS, macdHistS;
+let chartsInited = false;
+
+function initCharts() {
+  const mainEl = document.getElementById('chart-main');
+  const rsiEl  = document.getElementById('chart-rsi');
+  const macdEl = document.getElementById('chart-macd');
+
+  chartMain = LightweightCharts.createChart(mainEl, { ...CHART_OPTS(), width: mainEl.clientWidth, height: mainEl.clientHeight });
+  chartRsi  = LightweightCharts.createChart(rsiEl,  { ...CHART_OPTS(), width: rsiEl.clientWidth,  height: rsiEl.clientHeight });
+  chartMacd = LightweightCharts.createChart(macdEl, { ...CHART_OPTS(), width: macdEl.clientWidth, height: macdEl.clientHeight });
+
+  // Sync crosshair & scroll across all charts
+  [chartMain, chartRsi, chartMacd].forEach((src, si) => {
+    src.subscribeCrosshairMove(p => {
+      if (!p.time) return;
+      [chartMain, chartRsi, chartMacd].forEach((dst, di) => { if (di !== si) dst.setCrosshairPosition(p.seriesData?.values().next().value?.value ?? 0, p.time, dst.series?.[0]); });
+    });
+    src.timeScale().subscribeVisibleLogicalRangeChange(range => {
+      if (!range) return;
+      [chartMain, chartRsi, chartMacd].forEach((dst, di) => { if (di !== si) dst.timeScale().setVisibleLogicalRange(range); });
+    });
+  });
+
+  // ── Main chart series ──
+  candleSeries = chartMain.addCandlestickSeries({ upColor:'#26a69a', downColor:'#ef5350', borderUpColor:'#26a69a', borderDownColor:'#ef5350', wickUpColor:'#26a69a', wickDownColor:'#ef5350' });
+  ema9S   = chartMain.addLineSeries({ color:'#2196f3', lineWidth:1, priceLineVisible:false, lastValueVisible:false });
+  ema21S  = chartMain.addLineSeries({ color:'#ff9800', lineWidth:1, priceLineVisible:false, lastValueVisible:false });
+  ema50S  = chartMain.addLineSeries({ color:'#9c27b0', lineWidth:1.5, priceLineVisible:false, lastValueVisible:false });
+  ema200S = chartMain.addLineSeries({ color:'#f44336', lineWidth:2, priceLineVisible:false, lastValueVisible:false });
+  bbUpS   = chartMain.addLineSeries({ color:'rgba(38,166,154,0.5)', lineWidth:1, priceLineVisible:false, lastValueVisible:false });
+  bbMidS  = chartMain.addLineSeries({ color:'rgba(38,166,154,0.3)', lineWidth:1, lineStyle:2, priceLineVisible:false, lastValueVisible:false });
+  bbLowS  = chartMain.addLineSeries({ color:'rgba(38,166,154,0.5)', lineWidth:1, priceLineVisible:false, lastValueVisible:false });
+
+  // ── RSI chart ──
+  chartRsi.priceScale('right').applyOptions({ autoScale: false, minimum: 0, maximum: 100 });
+  rsiSeries = chartRsi.addLineSeries({ color:'#ba68c8', lineWidth:1.5, priceLineVisible:false, lastValueVisible:true });
+  rsiOb = chartRsi.addLineSeries({ color:'rgba(239,83,80,0.4)', lineWidth:1, lineStyle:2, priceLineVisible:false, lastValueVisible:false });
+  rsiOs = chartRsi.addLineSeries({ color:'rgba(38,166,154,0.4)', lineWidth:1, lineStyle:2, priceLineVisible:false, lastValueVisible:false });
+
+  // ── MACD chart ──
+  macdSeries  = chartMacd.addLineSeries({ color:'#2196f3', lineWidth:1.5, priceLineVisible:false, lastValueVisible:true });
+  macdSigS    = chartMacd.addLineSeries({ color:'#ff9800', lineWidth:1, priceLineVisible:false, lastValueVisible:true });
+  macdHistS   = chartMacd.addHistogramSeries({ priceLineVisible:false, lastValueVisible:false });
+
+  chartsInited = true;
+}
+
+function setData(candles) {
+  const mk = c => ({ time: c.time });
+  candleSeries.setData(candles.map(c => ({ time:c.time, open:c.open, high:c.high, low:c.low, close:c.close })));
+  ema9S.setData(candles.map(c => ({ time:c.time, value:c.ema9 })));
+  ema21S.setData(candles.map(c => ({ time:c.time, value:c.ema21 })));
+  ema50S.setData(candles.map(c => ({ time:c.time, value:c.ema50 })));
+  ema200S.setData(candles.map(c => ({ time:c.time, value:c.ema200 })));
+  bbUpS.setData(candles.map(c => ({ time:c.time, value:c.bb_upper })));
+  bbMidS.setData(candles.map(c => ({ time:c.time, value:c.bb_mid })));
+  bbLowS.setData(candles.map(c => ({ time:c.time, value:c.bb_lower })));
+
+  rsiSeries.setData(candles.map(c => ({ time:c.time, value:c.rsi })));
+  const firstTime = candles[0].time, lastTime = candles[candles.length-1].time;
+  rsiOb.setData([{time:firstTime,value:70},{time:lastTime,value:70}]);
+  rsiOs.setData([{time:firstTime,value:30},{time:lastTime,value:30}]);
+
+  macdSeries.setData(candles.map(c => ({ time:c.time, value:c.macd })));
+  macdSigS.setData(candles.map(c => ({ time:c.time, value:c.macd_sig })));
+  macdHistS.setData(candles.map(c => ({ time:c.time, value:c.macd_hist, color: c.macd_hist >= 0 ? 'rgba(38,166,154,0.7)' : 'rgba(239,83,80,0.7)' })));
+
+  chartMain.timeScale().fitContent();
+  chartRsi.timeScale().fitContent();
+  chartMacd.timeScale().fitContent();
+
+  // Update OHLC bar with latest candle
+  const last = candles[candles.length - 1];
+  document.getElementById('ohlc-o').textContent = '$' + last.open.toLocaleString();
+  document.getElementById('ohlc-h').textContent = '$' + last.high.toLocaleString();
+  document.getElementById('ohlc-l').textContent = '$' + last.low.toLocaleString();
+  document.getElementById('ohlc-c').textContent = '$' + last.close.toLocaleString();
+}
+
+// ── Sidebar renderers ────────────────────────────────────────────────────────
+const TREND_EMOJI = { STRONG_UPTREND:'🚀', UPTREND:'📈', NEUTRAL:'➡️', DOWNTREND:'📉', STRONG_DOWNTREND:'🔻' };
+
+function renderSidebar(d) {
+  const m = d.market;
+
+  // Price + badges
+  document.getElementById('cur-price').textContent = '$' + m.price.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const b24 = document.getElementById('chg-24h');
+  b24.textContent = (m.change_24h>=0?'+':'') + m.change_24h.toFixed(2) + '%';
+  b24.className = 'chg ' + (m.change_24h>0?'up':m.change_24h<0?'down':'flat');
+  const b7 = document.getElementById('chg-7d');
+  b7.textContent = '7d ' + (m.change_7d>=0?'+':'') + m.change_7d.toFixed(2) + '%';
+  b7.className = 'chg ' + (m.change_7d>0?'up':m.change_7d<0?'down':'flat');
+
+  // Trend
+  const tEl = document.getElementById('trend-val');
+  tEl.textContent = (TREND_EMOJI[d.trend]||'') + ' ' + d.trend.replace(/_/g,' ');
+  tEl.className = 'trend-value ' + d.trend;
+
+  // Risk
+  const rEl = document.getElementById('risk-val');
+  rEl.textContent = d.reversal_risk;
+  rEl.className = 'metric-value risk-' + d.reversal_risk;
+
+  document.getElementById('conf-val').textContent = d.confidence + '%';
+
+  // Score bar — map score from -10..+10 to 0..100%
+  const pct = Math.min(100, Math.max(0, (d.score + 10) / 20 * 100));
+  const fill = document.getElementById('score-fill');
+  fill.style.width = pct + '%';
+  fill.style.background = d.score > 0 ? '#26a69a' : d.score < 0 ? '#ef5350' : '#787b86';
+  document.getElementById('score-num').textContent = 'Score: ' + (d.score > 0 ? '+' : '') + d.score;
+
+  // Signals
+  const sl = document.getElementById('signals-list');
+  sl.innerHTML = d.signals.map(s => {
+    const cls = s.score > 0 ? 'bull' : s.score < 0 ? 'bear' : 'neut';
+    const scCls = s.score > 0 ? 'pos' : s.score < 0 ? 'neg' : 'neu';
+    return `<div class="signal-row">
+      <span class="sig-dot ${cls}"></span>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span class="sig-name">${s.name}</span>
+          <span class="sig-score ${scCls}">${s.score > 0 ? '+' : ''}${s.score}</span>
+        </div>
+        <div class="sig-interp">${s.interpretation}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Warnings
+  const wl = document.getElementById('warnings-list');
+  wl.innerHTML = d.reversal_warnings.length
+    ? d.reversal_warnings.map(w => `<div class="warn-item"><span>⚠</span><span>${w}</span></div>`).join('')
+    : '<div class="warn-none">✅ No reversal warnings</div>';
+
+  // Recommendation
+  document.getElementById('rec-text').textContent = d.recommendation;
+
+  // Timestamp
+  document.getElementById('last-up').textContent = new Date().toLocaleTimeString();
+}
+
+// ── Main load ────────────────────────────────────────────────────────────────
+async function loadData() {
+  const overlay = document.getElementById('overlay');
+  const errMsg  = document.getElementById('err-msg');
+  overlay.classList.remove('hidden');
+  errMsg.style.display = 'none';
+
+  try {
+    const res = await fetch('/api/analysis?days=90');
+    if (!res.ok) throw new Error('Server error ' + res.status);
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+
+    if (!chartsInited) initCharts();
+    setData(d.candles);
+    renderSidebar(d);
+    overlay.classList.add('hidden');
+  } catch (e) {
+    errMsg.textContent = '⚠ ' + e.message;
+    errMsg.style.display = 'block';
+    // hide spinner, show retry
+    document.querySelector('#overlay .spinner').style.display = 'none';
+    document.querySelector('#overlay div:nth-child(2)').innerHTML =
+      '<button onclick="loadData()" style="padding:6px 18px;background:#2962ff;color:#fff;border:none;border-radius:4px;cursor:pointer;margin-top:8px;">Retry</button>';
+  }
+}
+
+// ── Resize handler ───────────────────────────────────────────────────────────
+function resizeCharts() {
+  if (!chartsInited) return;
+  const resize = (chart, el) => chart.resize(el.clientWidth, el.clientHeight);
+  resize(chartMain, document.getElementById('chart-main'));
+  resize(chartRsi,  document.getElementById('chart-rsi'));
+  resize(chartMacd, document.getElementById('chart-macd'));
+}
+window.addEventListener('resize', resizeCharts);
+
+// Auto-refresh every 5 min
+setInterval(loadData, 5 * 60 * 1000);
+
+loadData();
+</script>
+</body>
+</html>
