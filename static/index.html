@@ -469,8 +469,8 @@ function resizeCharts() {
 }
 window.addEventListener('resize', resizeCharts);
 
-// Auto-refresh every 5 min
-setInterval(loadData, 5 * 60 * 1000);
+// Auto-refresh every 10 minutes (respect CoinGecko free tier rate limits)
+setInterval(loadData, 10 * 60 * 1000);
 
 loadData();
 </script>

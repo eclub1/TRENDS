@@ -28,6 +28,15 @@ app.add_middleware(
 )
 
 
+import math
+
+def _safe(v):
+    """Convert NaN/Inf floats to None so they serialize as JSON null."""
+    if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+        return None
+    return v
+
+
 def run_analysis(days: int = 90) -> dict:
     logger.info(f"Fetching OHLC data for {days} days...")
     ohlc_df = fetch_ohlc(days=days)
@@ -43,23 +52,23 @@ def run_analysis(days: int = 90) -> dict:
     for _, row in df_ind.iterrows():
         candles.append({
             "time":     int(row["timestamp"].timestamp()),
-            "open":     round(float(row["open"]),  2),
-            "high":     round(float(row["high"]),  2),
-            "low":      round(float(row["low"]),   2),
-            "close":    round(float(row["close"]), 2),
-            "ema9":     round(float(row["ema_9"]),    2),
-            "ema21":    round(float(row["ema_21"]),   2),
-            "ema50":    round(float(row["ema_50"]),   2),
-            "ema200":   round(float(row["ema_200"]),  2),
-            "bb_upper": round(float(row["bb_upper"]), 2),
-            "bb_mid":   round(float(row["bb_mid"]),   2),
-            "bb_lower": round(float(row["bb_lower"]), 2),
-            "rsi":      round(float(row["rsi"]),       2),
-            "macd":     round(float(row["macd"]),      2),
-            "macd_sig": round(float(row["macd_signal"]), 2),
-            "macd_hist":round(float(row["macd_hist"]), 2),
-            "stoch_k":  round(float(row["stoch_k"]),   2),
-            "stoch_d":  round(float(row["stoch_d"]),   2),
+            "open":     _safe(round(float(row["open"]),  2)),
+            "high":     _safe(round(float(row["high"]),  2)),
+            "low":      _safe(round(float(row["low"]),   2)),
+            "close":    _safe(round(float(row["close"]), 2)),
+            "ema9":     _safe(round(float(row["ema_9"]),    2)),
+            "ema21":    _safe(round(float(row["ema_21"]),   2)),
+            "ema50":    _safe(round(float(row["ema_50"]),   2)),
+            "ema200":   _safe(round(float(row["ema_200"]),  2)),
+            "bb_upper": _safe(round(float(row["bb_upper"]), 2)),
+            "bb_mid":   _safe(round(float(row["bb_mid"]),   2)),
+            "bb_lower": _safe(round(float(row["bb_lower"]), 2)),
+            "rsi":      _safe(round(float(row["rsi"]),       2)),
+            "macd":     _safe(round(float(row["macd"]),      2)),
+            "macd_sig": _safe(round(float(row["macd_signal"]), 2)),
+            "macd_hist":_safe(round(float(row["macd_hist"]), 2)),
+            "stoch_k":  _safe(round(float(row["stoch_k"]),   2)),
+            "stoch_d":  _safe(round(float(row["stoch_d"]),   2)),
         })
 
     return {
