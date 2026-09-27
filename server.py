@@ -125,7 +125,7 @@ def run_analysis(days: int = 90, mode: str = "swing") -> dict:
 
     logger.info("Running prediction engine...")
     try:
-        pred = predict(df_ind)
+        pred = predict(df_ind, mode=mode)
         pred_data = {
             "forecast": pred.forecast, "forecast_horizon": pred.forecast_horizon,
             "forecast_confidence": pred.forecast_confidence, "bias": pred.bias,
