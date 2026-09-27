@@ -37,7 +37,7 @@ app.add_middleware(
 )
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-GROQ_MODEL   = "llama-3.3-70b-versatile"
+GROQ_MODEL   = "openai/gpt-oss-20b"
 
 
 # ── Safe JSON response ────────────────────────────────────────────────────────
