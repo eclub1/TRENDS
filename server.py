@@ -29,9 +29,43 @@ app.add_middleware(
 
 
 import math
+import numpy as np
+from fastapi.responses import Response
+import json
+
+
+class SafeJSONResponse(Response):
+    """JSONResponse that handles numpy int64/float64 and NaN/Inf values."""
+    media_type = "application/json"
+
+    def render(self, content) -> bytes:
+        return json.dumps(content, cls=_SafeEncoder).encode("utf-8")
+
+
+class _SafeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            v = float(obj)
+            return None if (math.isnan(v) or math.isinf(v)) else v
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
+    def encode(self, obj):
+        # Also sanitize plain Python floats
+        if isinstance(obj, float):
+            return "null" if (math.isnan(obj) or math.isinf(obj)) else super().encode(obj)
+        return super().encode(obj)
+
 
 def _safe(v):
-    """Convert NaN/Inf floats to None so they serialize as JSON null."""
+    """Convert NaN/Inf floats and numpy scalars to safe Python types."""
+    if isinstance(v, (np.integer,)):
+        return int(v)
+    if isinstance(v, (np.floating,)):
+        v = float(v)
     if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
         return None
     return v
@@ -101,11 +135,11 @@ async def health():
 async def api_analysis(days: int = 90):
     try:
         data = run_analysis(days)
-        return JSONResponse(content=data)
+        return SafeJSONResponse(content=data)
     except Exception as e:
         tb = traceback.format_exc()
         logger.error(f"Analysis failed:\n{tb}")
-        return JSONResponse(status_code=500, content={"error": str(e), "detail": tb})
+        return SafeJSONResponse(status_code=500, content={"error": str(e), "detail": tb})
 
 
 @app.get("/", response_class=HTMLResponse)

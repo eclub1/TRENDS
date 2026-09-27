@@ -111,7 +111,7 @@ def add_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
         - (df["ema_9"] < df["ema_21"]).astype(int)
         - (df["ema_21"] < df["ema_50"]).astype(int)
         - (df["ema_50"] < df["ema_200"]).astype(int)
-    )
+    ).astype(float)  # cast to float so JSON serializes cleanly
 
     # Drop rows where indicators haven't warmed up yet
     df = df.dropna(subset=["ema_200", "macd", "rsi", "stoch_k"]).reset_index(drop=True)
