@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 from src.fetcher import fetch_ohlc, fetch_market_data
 from src.indicators import add_all_indicators
 from src.trend_detector import analyze
+from src.predictor import predict
 
 app = FastAPI(title="ETH Trend AI", version="3.0.0")
 
@@ -86,7 +87,9 @@ def run_analysis(days: int = 90) -> dict:
     df_ind = add_all_indicators(ohlc_df)
     logger.info(f"Running trend analysis on {len(df_ind)} rows...")
     result = analyze(df_ind)
-    logger.info(f"Analysis complete: {result.trend}")
+    logger.info("Running prediction engine...")
+    pred = predict(df_ind)
+    logger.info(f"Analysis complete: {result.trend} | Forecast: {pred.forecast}")
 
     candles = []
     for _, row in df_ind.iterrows():
@@ -129,34 +132,59 @@ def run_analysis(days: int = 90) -> dict:
             for s in result.signals
         ],
         "reversal_warnings": result.reversal_reasons,
+        "prediction": {
+            "forecast":            pred.forecast,
+            "forecast_horizon":    pred.forecast_horizon,
+            "forecast_confidence": pred.forecast_confidence,
+            "bias":                pred.bias,
+            "current_price":       pred.current_price,
+            "entry_low":           pred.entry_low,
+            "entry_high":          pred.entry_high,
+            "entry_note":          pred.entry_note,
+            "tp1": pred.tp1, "tp2": pred.tp2, "tp3": pred.tp3,
+            "tp1_pct": pred.tp1_pct, "tp2_pct": pred.tp2_pct, "tp3_pct": pred.tp3_pct,
+            "stop_loss": pred.stop_loss, "stop_pct": pred.stop_pct,
+            "rr1": pred.rr1, "rr2": pred.rr2, "rr3": pred.rr3,
+            "summary": pred.summary,
+            "supports": [
+                {"price": s.price, "label": s.label, "strength": s.strength}
+                for s in pred.supports
+            ],
+            "resistances": [
+                {"price": r.price, "label": r.label, "strength": r.strength}
+                for r in pred.resistances
+            ],
+        },
     }
 
 
 def _build_system_prompt(analysis: dict) -> str:
     m = analysis["market"]
+    p = analysis.get("prediction", {})
     sigs = "\n".join(
         f"  - {s['name']}: score {s['score']:+.1f} — {s['interpretation']}"
         for s in analysis["signals"]
     )
     warnings = "\n".join(f"  - {w}" for w in analysis["reversal_warnings"]) or "  None"
+    supports = "\n".join(f"  - ${s['price']:,.2f} ({s['label']})" for s in p.get("supports",[])) or "  None"
+    resistances = "\n".join(f"  - ${r['price']:,.2f} ({r['label']})" for r in p.get("resistances",[])) or "  None"
 
     return f"""You are an expert crypto market analyst AI embedded in the ETH Trend AI platform.
-You have access to real-time Ethereum market data and technical analysis. Use it to answer user questions clearly and helpfully.
+You have access to real-time Ethereum market data, technical analysis, and a prediction engine. Use it to answer questions clearly and specifically.
 
 CURRENT ETH MARKET DATA:
 - Price: ${m['price']:,.2f}
 - 24h Change: {m['change_24h']:+.2f}%
 - 7d Change: {m['change_7d']:+.2f}%
-- 24h High: ${m['high_24h']:,.2f}
-- 24h Low: ${m['low_24h']:,.2f}
+- 24h High/Low: ${m['high_24h']:,.2f} / ${m['low_24h']:,.2f}
 - Volume 24h: ${m['volume_24h']:,.0f}
 
 TREND ANALYSIS:
 - Trend: {analysis['trend'].replace('_', ' ')}
 - Reversal Risk: {analysis['reversal_risk']}
 - Confidence: {analysis['confidence']}%
-- Aggregate Score: {analysis['score']:+.2f} (scale: -10 bearish to +10 bullish)
-- AI Recommendation: {analysis['recommendation']}
+- Score: {analysis['score']:+.2f} (scale: -10 bearish → +10 bullish)
+- Recommendation: {analysis['recommendation']}
 
 SIGNAL BREAKDOWN:
 {sigs}
@@ -164,12 +192,29 @@ SIGNAL BREAKDOWN:
 REVERSAL WARNINGS:
 {warnings}
 
+PREDICTION ENGINE:
+- Forecast: {p.get('forecast','N/A')} ({p.get('forecast_horizon','')}) — {p.get('forecast_confidence',0):.0f}% confidence
+- Bias: {p.get('bias','N/A')}
+- Entry Zone: ${p.get('entry_low',0):,.2f} – ${p.get('entry_high',0):,.2f}
+- Take Profit 1: ${p.get('tp1',0):,.2f} ({p.get('tp1_pct',0):+.1f}%) — R:R 1:{p.get('rr1',0):.1f}
+- Take Profit 2: ${p.get('tp2',0):,.2f} ({p.get('tp2_pct',0):+.1f}%) — R:R 1:{p.get('rr2',0):.1f}
+- Take Profit 3: ${p.get('tp3',0):,.2f} ({p.get('tp3_pct',0):+.1f}%) — R:R 1:{p.get('rr3',0):.1f}
+- Stop Loss: ${p.get('stop_loss',0):,.2f} ({p.get('stop_pct',0):+.1f}%)
+- Summary: {p.get('summary','')}
+
+KEY SUPPORT LEVELS:
+{supports}
+
+KEY RESISTANCE LEVELS:
+{resistances}
+
 INSTRUCTIONS:
 - Always ground your answers in the data above.
-- Be direct and specific — reference actual indicator values.
-- If asked about buying/selling, give a nuanced technical view but always remind the user this is not financial advice.
-- Keep responses concise (3-5 sentences max unless a detailed explanation is asked for).
-- Never make up data not present above.
+- Reference actual prices, percentages, and indicator values.
+- When asked about entry/exit, give the specific levels from the prediction engine above.
+- Always remind users this is not financial advice.
+- Keep responses concise (3-6 sentences) unless detailed explanation is requested.
+- Never make up data. Use only what is listed above.
 - Today's date: 2026-09-27.
 """
 
