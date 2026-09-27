@@ -1,13 +1,18 @@
 """
 ETH Trend AI — FastAPI web server.
-Serves a TradingView-style dashboard at / and JSON API at /api/analysis and /api/candles
+Serves a TradingView-style dashboard at / and JSON API at /api/analysis
 """
 
 import os
+import traceback
+import logging
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 from src.fetcher import fetch_ohlc, fetch_market_data
 from src.indicators import add_all_indicators
@@ -24,35 +29,37 @@ app.add_middleware(
 
 
 def run_analysis(days: int = 90) -> dict:
+    logger.info(f"Fetching OHLC data for {days} days...")
     ohlc_df = fetch_ohlc(days=days)
+    logger.info(f"Got {len(ohlc_df)} candles. Fetching market data...")
     market = fetch_market_data()
+    logger.info("Computing indicators...")
     df_ind = add_all_indicators(ohlc_df)
+    logger.info(f"Running trend analysis on {len(df_ind)} rows...")
     result = analyze(df_ind)
+    logger.info(f"Analysis complete: {result.trend}")
 
-    # Build candle series for the chart
     candles = []
     for _, row in df_ind.iterrows():
         candles.append({
-            "time": int(row["timestamp"].timestamp()),
-            "open":  round(float(row["open"]),  2),
-            "high":  round(float(row["high"]),  2),
-            "low":   round(float(row["low"]),   2),
-            "close": round(float(row["close"]), 2),
-            # indicator overlays
-            "ema9":   round(float(row["ema_9"]),   2),
-            "ema21":  round(float(row["ema_21"]),  2),
-            "ema50":  round(float(row["ema_50"]),  2),
-            "ema200": round(float(row["ema_200"]), 2),
+            "time":     int(row["timestamp"].timestamp()),
+            "open":     round(float(row["open"]),  2),
+            "high":     round(float(row["high"]),  2),
+            "low":      round(float(row["low"]),   2),
+            "close":    round(float(row["close"]), 2),
+            "ema9":     round(float(row["ema_9"]),    2),
+            "ema21":    round(float(row["ema_21"]),   2),
+            "ema50":    round(float(row["ema_50"]),   2),
+            "ema200":   round(float(row["ema_200"]),  2),
             "bb_upper": round(float(row["bb_upper"]), 2),
             "bb_mid":   round(float(row["bb_mid"]),   2),
             "bb_lower": round(float(row["bb_lower"]), 2),
-            # sub-panel indicators
-            "rsi":       round(float(row["rsi"]),       2),
-            "macd":      round(float(row["macd"]),      2),
-            "macd_sig":  round(float(row["macd_signal"]),2),
-            "macd_hist": round(float(row["macd_hist"]), 2),
-            "stoch_k":   round(float(row["stoch_k"]),   2),
-            "stoch_d":   round(float(row["stoch_d"]),   2),
+            "rsi":      round(float(row["rsi"]),       2),
+            "macd":     round(float(row["macd"]),      2),
+            "macd_sig": round(float(row["macd_signal"]), 2),
+            "macd_hist":round(float(row["macd_hist"]), 2),
+            "stoch_k":  round(float(row["stoch_k"]),   2),
+            "stoch_d":  round(float(row["stoch_d"]),   2),
         })
 
     return {
@@ -87,12 +94,13 @@ async def api_analysis(days: int = 90):
         data = run_analysis(days)
         return JSONResponse(content=data)
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        tb = traceback.format_exc()
+        logger.error(f"Analysis failed:\n{tb}")
+        return JSONResponse(status_code=500, content={"error": str(e), "detail": tb})
 
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard():
-    # Use path relative to CWD (works in Docker where CWD = /app)
     base = os.path.dirname(os.path.abspath(__file__))
     html_path = os.path.join(base, "static", "index.html")
     with open(html_path, "r", encoding="utf-8") as f:
