@@ -104,7 +104,8 @@ def run_analysis(days: int = 90, mode: str = "swing") -> dict:
 
     logger.info("Running multi-timeframe analysis...")
     try:
-        mtf = analyze_mtf(mode=mode)        mtf_data = {
+        mtf = analyze_mtf(mode=mode)
+        mtf_data = {
             "confluence":       mtf.confluence,
             "confluence_score": mtf.confluence_score,
             "trade_quality":    mtf.trade_quality,
