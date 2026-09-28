@@ -1,11 +1,14 @@
 """
-ETH Trend AI — FastAPI web server v4.0
+ETH Trend AI — FastAPI web server v5.0
 Endpoints:
-  GET  /              → dashboard
-  GET  /health        → health check
-  GET  /api/analysis  → full analysis JSON (trend + ML + MTF + patterns + prediction)
-  POST /api/chat      → Groq AI chat
-  POST /api/calculate → position size calculator
+  GET  /                → dashboard
+  GET  /health          → health check
+  GET  /api/analysis    → full analysis (trend + ML + MTF + patterns + prediction + regime)
+  GET  /api/backtest    → backtest signals on historical data
+  GET  /api/briefing    → AI-generated trade briefing
+  GET  /api/price       → live price (lightweight, called every 10s)
+  POST /api/chat        → Groq AI chat
+  POST /api/calculate   → position size calculator
 """
 
 import os, math, json, traceback, logging
@@ -19,14 +22,16 @@ from fastapi.middleware.cors import CORSMiddleware
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from src.fetcher      import fetch_ohlc, fetch_market_data, fetch_binance_ohlc
-from src.indicators   import add_all_indicators
+from src.fetcher        import fetch_ohlc, fetch_market_data, fetch_binance_ohlc
+from src.indicators     import add_all_indicators
 from src.trend_detector import analyze
-from src.predictor    import predict
-from src.ml_engine    import train_and_predict
+from src.predictor      import predict
+from src.ml_engine      import train_and_predict
 from src.multi_timeframe import analyze_mtf
-from src.patterns     import detect_patterns
-from src.signal_engine import generate_signal, generate_chart_signals
+from src.patterns       import detect_patterns
+from src.signal_engine  import generate_signal, generate_chart_signals
+from src.backtester     import run_backtest
+from src.regime         import detect_regime
 
 app = FastAPI(title="ETH Trend AI", version="4.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -68,8 +73,11 @@ def run_analysis(days: int = 90, mode: str = "swing") -> dict:
     market = fetch_market_data()
 
     if mode == "daytrade":
-        ohlc_df  = fetch_binance_ohlc("15m", 200)
-        interval_label = "15m"
+        ohlc_df  = fetch_binance_ohlc("5m", 300)   # 5min candles, last 25 hours
+        interval_label = "5m"
+    elif mode == "scalp":
+        ohlc_df  = fetch_binance_ohlc("1m", 300)   # 1min candles, last 5 hours
+        interval_label = "1m"
     else:
         ohlc_df  = fetch_ohlc(days=days)
         interval_label = "1d"
@@ -96,8 +104,7 @@ def run_analysis(days: int = 90, mode: str = "swing") -> dict:
 
     logger.info("Running multi-timeframe analysis...")
     try:
-        mtf = analyze_mtf(mode=mode)
-        mtf_data = {
+        mtf = analyze_mtf(mode=mode)        mtf_data = {
             "confluence":       mtf.confluence,
             "confluence_score": mtf.confluence_score,
             "trade_quality":    mtf.trade_quality,
@@ -123,6 +130,28 @@ def run_analysis(days: int = 90, mode: str = "swing") -> dict:
         logger.warning(f"Patterns failed: {e}")
         patterns_data = []
 
+    logger.info("Detecting market regime...")
+    try:
+        regime = detect_regime(df_ind)
+        regime_data = {
+            "regime":           regime.regime,
+            "regime_strength":  regime.regime_strength,
+            "adx":              regime.adx,
+            "volatility_pct":   regime.volatility_pct,
+            "bb_squeeze":       regime.bb_squeeze,
+            "session":          regime.session,
+            "session_quality":  regime.session_quality,
+            "best_strategy":    regime.best_strategy,
+            "description":      regime.description,
+            "support_zones":    regime.support_zones,
+            "resistance_zones": regime.resistance_zones,
+        }
+    except Exception as e:
+        logger.warning(f"Regime failed: {e}")
+        regime_data = {"regime":"RANGING","regime_strength":"WEAK","adx":0,"volatility_pct":0,
+                       "bb_squeeze":False,"session":"UNKNOWN","session_quality":"LOW",
+                       "best_strategy":"","description":"","support_zones":[],"resistance_zones":[]}
+
     logger.info("Running prediction engine...")
     try:
         pred = predict(df_ind, mode=mode)
@@ -147,7 +176,7 @@ def run_analysis(days: int = 90, mode: str = "swing") -> dict:
     try:
         ml_dir  = ml_data.get("direction", "NEUTRAL")
         ml_prob = ml_data.get("probability", 50.0)
-        sig = generate_signal(df_ind, ml_dir, ml_prob)
+        sig = generate_signal(df_ind, ml_dir, ml_prob, mode=mode)
         chart_sigs = generate_chart_signals(df_ind)
         signal_data = {
             "action":        sig.action,
@@ -160,6 +189,8 @@ def run_analysis(days: int = 90, mode: str = "swing") -> dict:
             "stop_loss":     sig.stop_loss,
             "take_profit":   sig.take_profit,
             "urgency":       sig.urgency,
+            "bull_score":    sig.bull_score,
+            "bear_score":    sig.bear_score,
         }
         chart_signal_data = [
             {"time": cs.time, "price": cs.price, "action": cs.action, "strength": cs.strength}
@@ -208,6 +239,7 @@ def run_analysis(days: int = 90, mode: str = "swing") -> dict:
         "ml": ml_data,
         "mtf": mtf_data,
         "patterns": patterns_data,
+        "regime": regime_data,
         "prediction": pred_data,
         "signal": signal_data,
         "chart_signals": chart_signal_data,
@@ -287,6 +319,89 @@ Summary: {p.get('summary','')}
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
+@app.get("/api/briefing")
+async def api_briefing(mode: str = "daytrade"):
+    """
+    Auto-generates a complete AI trading briefing using live market data.
+    No user input needed — call on page load, get instant actionable plan.
+    """
+    if not GROQ_API_KEY:
+        return SafeJSONResponse(status_code=503, content={"error": "GROQ_API_KEY not configured."})
+    try:
+        data = run_analysis(days=90, mode=mode)
+        p    = data.get("prediction", {})
+        m    = data.get("market", {})
+        ml   = data.get("ml", {})
+        mtf  = data.get("mtf", {})
+        sig  = data.get("signal", {})
+        pats = data.get("patterns", [])
+        warns= data.get("reversal_warnings", [])
+
+        interval_name = {"swing":"daily","daytrade":"5-minute","scalp":"1-minute"}.get(mode,"5-minute")
+        mtf_labels = " → ".join(s["label"] for s in mtf.get("signals",[]))
+
+        prompt = f"""You are an expert ETH/USD day trader AI. Analyze the following LIVE market data and give a complete, specific, actionable trading briefing.
+
+CURRENT ETH DATA ({interval_name} candles):
+- Price: ${m['price']:,.2f}
+- 24h Change: {m['change_24h']:+.2f}%
+- 1h Change: {m.get('change_1h',0):+.2f}%
+- 24h High/Low: ${m['high_24h']:,.2f} / ${m['low_24h']:,.2f}
+
+TREND: {data['trend'].replace('_',' ')} (Score: {data['score']:+.1f}/10, Reversal Risk: {data['reversal_risk']})
+ML PREDICTION: {ml.get('direction','N/A')} at {ml.get('probability',50):.0f}% confidence
+MTF CONFLUENCE: {mtf.get('confluence','N/A')} across {mtf_labels} — Grade {mtf.get('trade_quality','?')} setup
+
+SIGNALS: {' | '.join(s['interpretation'] for s in data.get('signals',[])[:4])}
+WARNINGS: {' | '.join(warns) if warns else 'None'}
+PATTERNS: {' | '.join(p2['name'] + ' (' + p2['type'] + ')' for p2 in pats) if pats else 'None'}
+
+CURRENT SIGNAL: {sig.get('action','HOLD')} — {sig.get('reason','')}
+
+PREDICTION ENGINE:
+- Bias: {p.get('bias','WAIT')} | Forecast: {p.get('forecast','NEUTRAL')} ({p.get('forecast_confidence',0):.0f}%)
+- Entry zone: ${p.get('entry_low',0):,.2f} – ${p.get('entry_high',0):,.2f}
+- TP1: ${p.get('tp1',0):,.2f} ({p.get('tp1_pct',0):+.1f}%) R:R 1:{p.get('rr1',0):.1f}
+- TP2: ${p.get('tp2',0):,.2f} ({p.get('tp2_pct',0):+.1f}%) R:R 1:{p.get('rr2',0):.1f}
+- TP3: ${p.get('tp3',0):,.2f} ({p.get('tp3_pct',0):+.1f}%) R:R 1:{p.get('rr3',0):.1f}
+- Stop Loss: ${p.get('stop_loss',0):,.2f} ({p.get('stop_pct',0):+.1f}%)
+
+Write a trading briefing with these EXACT sections:
+1. MARKET READING (2 sentences: what is ETH doing RIGHT NOW and why)
+2. SHOULD YOU TRADE NOW? (YES/NO/WAIT — be direct, give the reason in one sentence)
+3. ENTRY (exact price or condition to wait for before entering)
+4. TRADE PLAN (entry, stop loss, TP1, TP2, TP3 as specific dollar amounts)
+5. KEY RISK (the single biggest thing that could invalidate this setup)
+6. WHAT TO WATCH (one specific price level or indicator reading that would change the picture)
+
+Be direct. Use specific dollar amounts from the data above. No generic advice. Max 150 words total."""
+
+        resp = req_lib.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
+            json={"model": GROQ_MODEL, "messages": [{"role":"user","content":prompt}],
+                  "max_tokens": 400, "temperature": 0.3},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        briefing_text = resp.json()["choices"][0]["message"]["content"]
+
+        return SafeJSONResponse(content={
+            "briefing": briefing_text,
+            "signal":   sig.get("action", "HOLD"),
+            "bias":     p.get("bias", "WAIT"),
+            "price":    m.get("price", 0),
+            "entry":    p.get("entry_high", 0),
+            "sl":       p.get("stop_loss", 0),
+            "tp1":      p.get("tp1", 0),
+            "tp2":      p.get("tp2", 0),
+            "mode":     mode,
+        })
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        return SafeJSONResponse(status_code=500, content={"error": str(e)})
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
@@ -441,6 +556,162 @@ async def api_calculate(request: Request):
             "max_losses_before_50pct_drawdown": max_losses,
         })
 
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        return SafeJSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/price")
+async def api_price():
+    """Lightweight live price endpoint — called every 10 seconds."""
+    try:
+        market = fetch_market_data()
+        return SafeJSONResponse(content={
+            "price":      market["price"],
+            "change_24h": market["change_24h"],
+            "change_1h":  market["change_1h"],
+            "high_24h":   market["high_24h"],
+            "low_24h":    market["low_24h"],
+            "volume_24h": market["volume_24h"],
+        })
+    except Exception as e:
+        return SafeJSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/backtest")
+async def api_backtest(mode: str = "daytrade", candles: int = 500,
+                       sl_mult: float = 0.8, tp_mult: float = 1.5):
+    """
+    Run full backtest on historical ETH data.
+    mode=daytrade → 5min candles (500 bars = ~42 hours)
+    mode=scalp    → 1min candles (500 bars = ~8 hours)
+    mode=swing    → daily candles (500 bars = ~500 days, capped at 365)
+    """
+    try:
+        logger.info(f"Backtest: mode={mode} candles={candles}")
+        if mode == "daytrade":
+            df_raw = fetch_binance_ohlc("5m",  min(candles, 1000))
+        elif mode == "scalp":
+            df_raw = fetch_binance_ohlc("1m",  min(candles, 1000))
+        else:
+            df_raw = fetch_ohlc(days=min(candles, 365))
+
+        result = run_backtest(df_raw, mode=mode, sl_mult=sl_mult, tp_mult=tp_mult)
+        return SafeJSONResponse(content={
+            "total_trades":   result.total_trades,
+            "win_rate":       result.win_rate,
+            "profit_factor":  result.profit_factor,
+            "sharpe_ratio":   result.sharpe_ratio,
+            "max_drawdown":   result.max_drawdown,
+            "avg_win_r":      result.avg_win_r,
+            "avg_loss_r":     result.avg_loss_r,
+            "expectancy":     result.expectancy,
+            "total_return":   result.total_return,
+            "best_hour":      result.best_hour,
+            "worst_hour":     result.worst_hour,
+            "win_hours":      result.win_hours,
+            "trades":         result.trades,
+            "equity_curve":   result.equity_curve,
+            "summary":        result.summary,
+            "mode":           mode,
+        })
+    except Exception as e:
+        logger.error(traceback.format_exc())
+        return SafeJSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/briefing")
+async def api_briefing(mode: str = "daytrade"):
+    """Auto AI briefing — full trade plan generated on every call."""
+    if not GROQ_API_KEY:
+        return SafeJSONResponse(status_code=503, content={"error": "GROQ_API_KEY not configured."})
+    try:
+        data   = run_analysis(days=90, mode=mode)
+        p      = data.get("prediction", {})
+        m      = data.get("market", {})
+        ml     = data.get("ml", {})
+        mtf    = data.get("mtf", {})
+        sig    = data.get("signal", {})
+        regime = data.get("regime", {})
+        pats   = data.get("patterns", [])
+        warns  = data.get("reversal_warnings", [])
+
+        interval_name = {"swing":"daily","daytrade":"5-minute","scalp":"1-minute"}.get(mode,"5-minute")
+        mtf_labels = " → ".join(s["label"] for s in mtf.get("signals", []))
+        sup_str  = ", ".join(f"${s['price']:,.2f}" for s in regime.get("support_zones",    [])[:3])
+        res_str  = ", ".join(f"${r['price']:,.2f}" for r in regime.get("resistance_zones", [])[:3])
+
+        prompt = f"""You are an expert ETH/USD day trader AI. Analyze this LIVE data and write a trading briefing.
+
+LIVE ETH DATA ({interval_name} candles, {regime.get('session','?')} session):
+Price: ${m['price']:,.2f} | 1h: {m.get('change_1h',0):+.2f}% | 24h: {m['change_24h']:+.2f}%
+High/Low 24h: ${m['high_24h']:,.2f} / ${m['low_24h']:,.2f}
+
+MARKET REGIME: {regime.get('regime','?')} ({regime.get('regime_strength','?')})
+ADX: {regime.get('adx',0)} | Volatility: {regime.get('volatility_pct',0):.2f}% | BB Squeeze: {regime.get('bb_squeeze',False)}
+Session: {regime.get('session','?')} quality ({regime.get('session_quality','?')})
+Regime advice: {regime.get('best_strategy','')}
+
+KEY LEVELS:
+Support: {sup_str or 'None identified'}
+Resistance: {res_str or 'None identified'}
+
+TREND: {data['trend'].replace('_',' ')} | Score: {data['score']:+.1f} | Reversal Risk: {data['reversal_risk']}
+ML: {ml.get('direction','?')} {ml.get('probability',50):.0f}% | MTF: {mtf.get('confluence','?')} (Grade {mtf.get('trade_quality','?')}) across {mtf_labels}
+Current signal: {sig.get('action','HOLD')} — {sig.get('reason','')}
+Warnings: {' | '.join(warns) if warns else 'None'}
+Patterns: {' | '.join(p2['name'] for p2 in pats) if pats else 'None'}
+
+PREDICTION:
+Bias: {p.get('bias','WAIT')} | Entry: ${p.get('entry_low',0):,.2f}–${p.get('entry_high',0):,.2f}
+TP1: ${p.get('tp1',0):,.2f} ({p.get('tp1_pct',0):+.1f}%) R:R 1:{p.get('rr1',0):.1f}
+TP2: ${p.get('tp2',0):,.2f} ({p.get('tp2_pct',0):+.1f}%) R:R 1:{p.get('rr2',0):.1f}
+SL:  ${p.get('stop_loss',0):,.2f} ({p.get('stop_pct',0):+.1f}%)
+
+Write a briefing with EXACTLY these sections (use specific dollar amounts, be direct):
+
+MARKET READING
+[2 sentences: what is ETH doing right now and why]
+
+SHOULD YOU TRADE?
+[YES / NO / WAIT — one sentence reason]
+
+SETUP
+[If yes: exact entry price, stop loss, TP1, TP2. If no/wait: what to wait for]
+
+REGIME NOTE
+[One sentence on how the current market regime affects this trade]
+
+RISK WARNING
+[The single biggest risk to this trade right now]
+
+Max 120 words. No disclaimers. Use dollar amounts from the data."""
+
+        resp = req_lib.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
+            json={"model": GROQ_MODEL, "messages": [{"role":"user","content":prompt}],
+                  "max_tokens": 350, "temperature": 0.25},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        briefing_text = resp.json()["choices"][0]["message"]["content"]
+
+        return SafeJSONResponse(content={
+            "briefing":  briefing_text,
+            "signal":    sig.get("action", "HOLD"),
+            "bias":      p.get("bias", "WAIT"),
+            "regime":    regime.get("regime", "RANGING"),
+            "session":   regime.get("session", "?"),
+            "price":     m.get("price", 0),
+            "entry":     p.get("entry_high", 0),
+            "sl":        p.get("stop_loss", 0),
+            "tp1":       p.get("tp1", 0),
+            "tp2":       p.get("tp2", 0),
+            "supports":  regime.get("support_zones", []),
+            "resistances":regime.get("resistance_zones", []),
+            "mode":      mode,
+        })
     except Exception as e:
         logger.error(traceback.format_exc())
         return SafeJSONResponse(status_code=500, content={"error": str(e)})

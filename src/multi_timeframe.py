@@ -72,9 +72,16 @@ def analyze_mtf(mode: str = "swing") -> MTFResult:
 
     if mode == "daytrade":
         configs = [
-            ("4H",    lambda: fetch_binance_ohlc("4h",  200)),
-            ("1H",    lambda: fetch_binance_ohlc("1h",  200)),
-            ("15min", lambda: fetch_binance_ohlc("15m", 200)),
+            ("4H",   lambda: fetch_binance_ohlc("4h",  200)),
+            ("1H",   lambda: fetch_binance_ohlc("1h",  200)),
+            ("5min", lambda: fetch_binance_ohlc("5m",  300)),
+        ]
+        weights = [3, 2, 1]
+    elif mode == "scalp":
+        configs = [
+            ("1H",   lambda: fetch_binance_ohlc("1h",  200)),
+            ("15min",lambda: fetch_binance_ohlc("15m", 200)),
+            ("5min", lambda: fetch_binance_ohlc("5m",  300)),
         ]
         weights = [3, 2, 1]
     else:
